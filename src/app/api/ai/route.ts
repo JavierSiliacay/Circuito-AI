@@ -28,7 +28,7 @@ interface AIRequest {
     mode?: ModelRole;
 }
 
-// Model configuration — using reliable OpenRouter model IDs
+// Model configuration — using user-preferred hardware models
 const MODEL_CONFIG: Record<ModelRole, { model: string; systemPrompt: string }> = {
     hardware: {
         model: 'arcee-ai/trinity-large-preview:free',
@@ -163,12 +163,17 @@ export async function POST(request: NextRequest) {
         }
 
         // ============ LIVE MODE — stream from OpenRouter ============
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s for large models
+
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': 'http://localhost:3000',
                 'X-Title': 'Circuito AI',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
             body: JSON.stringify({
                 model: config.model,
@@ -176,11 +181,14 @@ export async function POST(request: NextRequest) {
                     { role: 'system', content: systemPrompt },
                     ...messages,
                 ],
-                max_tokens: 1024,
-                temperature: modelRole === 'tool' ? 0.1 : 0.7,
+                max_tokens: 1536,
+                temperature: 0.7,
                 stream: true,
             }),
+            signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const error = await response.text();
@@ -208,13 +216,19 @@ export async function POST(request: NextRequest) {
                 }
 
                 let buffer = '';
+                let firstChunk = true;
 
                 try {
                     while (true) {
                         const { done, value } = await reader.read();
                         if (done) break;
 
-                        buffer += decoder.decode(value, { stream: true });
+                        const chunk = decoder.decode(value, { stream: true });
+                        if (firstChunk) {
+                            console.log('[Circuito AI] First chunk from OpenRouter:', chunk);
+                            firstChunk = false;
+                        }
+                        buffer += chunk;
                         const lines = buffer.split('\n');
                         buffer = lines.pop() || '';
 
@@ -226,13 +240,16 @@ export async function POST(request: NextRequest) {
 
                             try {
                                 const parsed = JSON.parse(data);
+                                if (parsed.error) {
+                                    console.error('[Circuito AI] OpenRouter Stream Error JSON:', parsed.error);
+                                }
                                 const content = parsed.choices?.[0]?.delta?.content;
                                 if (content) {
                                     controller.enqueue(
                                         encoder.encode(`data: ${JSON.stringify({ type: 'token', content })}\n\n`)
                                     );
                                 }
-                            } catch {
+                            } catch (e) {
                                 // Skip unparseable chunks
                             }
                         }

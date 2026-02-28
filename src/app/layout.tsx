@@ -16,25 +16,28 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Circuito AI — Arduino & ESP32 Cloud IDE",
+  title: "Circuito AI",
   description:
-    "Browser-based Arduino/ESP32 IDE with firmware flashing, circuit design, and a hardware-specialized AI assistant. Write, flash, and debug embedded code in the cloud.",
+    "Chat with AI to generate Arduino and ESP32 code instantly. Flash firmware directly from your browser. No IDE needed.",
   keywords: [
-    "Arduino IDE",
+    "Arduino code generator",
     "ESP32",
+    "AI coding assistant",
     "firmware flash",
-    "circuit design",
-    "embedded AI",
-    "hardware assistant",
     "IoT",
-    "cloud IDE",
+    "hardware AI",
+    "embedded systems",
   ],
   authors: [{ name: "Circuito AI" }],
   openGraph: {
-    title: "Circuito AI — Arduino & ESP32 Cloud IDE",
+    title: "Circuito AI — AI-Powered Arduino & ESP32 Code Generator",
     description:
-      "Write, flash, and debug embedded code with an AI hardware assistant.",
+      "Chat with AI to generate Arduino and ESP32 code. Flash firmware from your browser.",
     type: "website",
+  },
+  icons: {
+    icon: "/brand/master-logo.png",
+    apple: "/brand/master-logo.png",
   },
 };
 

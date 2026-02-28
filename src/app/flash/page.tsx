@@ -21,9 +21,11 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import IDENavbar from '@/components/ide/navbar';
 import Link from 'next/link';
+import { BrandZap } from '@/components/ui/brand-zap';
 import { isWebSerialSupported, requestPort } from '@/lib/web-serial';
 import { getInstalledBoardsList, BoardDefinition } from '@/lib/board-manager';
 import BoardManager from '@/components/board-manager';
+import { flashEsp32 } from '@/lib/esp-flash';
 
 interface FlashLog {
     message: string;
@@ -140,48 +142,51 @@ export default function FlashPage() {
             addLog('Port opened at 115200 baud', 'success');
             setFlashStage('Writing firmware...');
 
-            // Write firmware in chunks
-            const writer = connectedPort.writable?.getWriter();
-            if (!writer) {
-                throw new Error('Cannot get port writer');
-            }
+            if (selectedBoard?.architecture === 'esp32') {
+                addLog('ESP32 detected. Using ESPTool.js injection...', 'info');
 
-            const chunkSize = 1024;
-            const totalChunks = Math.ceil(data.length / chunkSize);
+                await flashEsp32(data, {
+                    port: connectedPort,
+                    baudRate: 921600,
+                    terminal: {
+                        log: (msg) => addLog(msg, 'info'),
+                        error: (msg) => addLog(msg, 'error'),
+                        write: (msg) => addLog(msg, 'info')
+                    },
+                    onProgress: (p) => {
+                        setFlashProgress(p.percentage);
+                        setFlashStage(p.message);
+                    }
+                });
+            } else {
+                // Generic / MSD Streaming for non-ESP boards
+                const writer = connectedPort.writable?.getWriter();
+                if (!writer) throw new Error('Cannot get port writer');
 
-            const timerInterval = setInterval(() => {
-                setTimeElapsed(prev => prev + 0.5);
-            }, 500);
+                const chunkSize = 1024;
+                const totalChunks = Math.ceil(data.length / chunkSize);
 
-            for (let i = 0; i < totalChunks; i++) {
-                const start = i * chunkSize;
-                const end = Math.min(start + chunkSize, data.length);
-                const chunk = data.slice(start, end);
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, data.length);
+                    const chunk = data.slice(start, end);
 
-                await writer.write(chunk);
+                    await writer.write(chunk);
 
-                const progress = ((i + 1) / totalChunks) * 100;
-                setFlashProgress(progress);
+                    const progress = ((i + 1) / totalChunks) * 100;
+                    setFlashProgress(progress);
+                    setFlashStage(`Streaming ${Math.round(progress)}%`);
 
-                if (progress < 30) setFlashStage('Writing...');
-                else if (progress < 60) setFlashStage('Verifying...');
-                else if (progress < 90) setFlashStage('Finalizing...');
-                else setFlashStage('Almost done...');
-
-                // Log every ~15%
-                if (Math.floor((i / totalChunks) * 7) !== Math.floor(((i + 1) / totalChunks) * 7)) {
-                    const addr = (0x00010000 + start).toString(16).padStart(8, '0');
-                    addLog(`Writing at 0x${addr}... (${Math.floor(progress)}%)`, 'info');
+                    if (Math.floor((i / totalChunks) * 10) !== Math.floor(((i + 1) / totalChunks) * 10)) {
+                        addLog(`Writing chunk ${i + 1}/${totalChunks}...`, 'info');
+                    }
                 }
+                writer.releaseLock();
             }
-
-            writer.releaseLock();
-            clearInterval(timerInterval);
 
             setFlashProgress(100);
             setFlashStage('Complete!');
-            addLog('Flash complete! All data written.', 'success');
-            addLog('You may need to reset your board manually.', 'info');
+            addLog('Flash complete! Board reset successfully.', 'success');
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
             addLog(`Flash failed: ${message}`, 'error');
@@ -447,9 +452,18 @@ export default function FlashPage() {
                                 disabled={isFlashing || !firmwareFile || !connectedPort}
                                 className="w-full bg-gradient-to-r from-cyan-primary to-cyan-500 hover:from-cyan-hover hover:to-cyan-600 text-surface-base font-semibold glow-cyan disabled:opacity-40 disabled:cursor-not-allowed h-12 text-sm"
                             >
-                                <Zap className="w-5 h-5 mr-2" />
+                                <BrandZap className="w-5 h-5 mr-2" />
                                 {isFlashing ? 'Flashing...' : !connectedPort ? 'Connect a device first' : !firmwareFile ? 'Select firmware file first' : 'Start Flash'}
                             </Button>
+
+                            {selectedBoard?.architecture === 'esp32' && (
+                                <p className="mt-4 text-[10px] text-yellow-400 bg-yellow-400/5 p-3 rounded-lg border border-yellow-400/20 flex gap-2">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    <span>
+                                        <strong>Note for ESP32:</strong> Standard serial flashing for ESP32 requires the <code>esptool</code> protocol. This simple flasher is currently best for Mass Storage or UF2 compatible boards. You can still use the <strong>AI Assistant</strong> to debug code while connected via Serial!
+                                    </span>
+                                </p>
+                            )}
                         </motion.section>
                     </div>
                 </div>

@@ -1,400 +1,855 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Zap,
-  Code2,
+  Send,
   Cpu,
-  CircuitBoard,
-  Bot,
-  ArrowRight,
+  Copy,
+  Check,
+  Upload,
   Sparkles,
-  MonitorSmartphone,
-  BarChart3,
-  ChevronRight,
+  Usb,
+  Loader2,
   Plus,
   Trash2,
-  FolderOpen,
+  Zap,
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeft,
+  ChevronDown,
+  CircuitBoard,
+  RefreshCcw,
+  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import IDENavbar from '@/components/ide/navbar';
-import { useProjectStore, Project } from '@/store/project-store';
+import { CircuitoLogo } from '@/components/ui/logo';
+import { isWebSerialSupported, requestPort } from '@/lib/web-serial';
+import { flashEsp32 } from '@/lib/esp-flash';
+import { supabase } from '@/lib/supabase';
 
-const features = [
-  {
-    icon: Code2,
-    title: 'Cloud IDE',
-    description: 'Full Monaco editor with Arduino/C++ intellisense, syntax highlighting, and auto-complete.',
-    href: '/ide',
-    color: 'from-cyan-primary to-cyan-500',
-    glowColor: 'cyan',
-  },
-  {
-    icon: Zap,
-    title: 'Firmware Flash',
-    description: 'Flash ESP32 & Arduino boards directly from the browser using Web Serial API.',
-    href: '/flash',
-    color: 'from-yellow-400 to-orange-500',
-    glowColor: 'orange',
-  },
-  {
-    icon: CircuitBoard,
-    title: 'Circuit Builder',
-    description: 'Visual drag-and-drop circuit designer with component library and wiring validation.',
-    href: '/circuits',
-    color: 'from-green-400 to-emerald-500',
-    glowColor: 'green',
-  },
-  {
-    icon: Bot,
-    title: 'AI Assistant',
-    description: 'Hardware-specialized AI that understands pins, voltages, datasheets, and code.',
-    href: '/ide',
-    color: 'from-purple-ai to-indigo-500',
-    glowColor: 'purple',
-  },
-  {
-    icon: MonitorSmartphone,
-    title: 'Device Manager',
-    description: 'Connect, monitor, and manage serial devices via Web Serial API.',
-    href: '/devices',
-    color: 'from-blue-400 to-blue-600',
-    glowColor: 'blue',
-  },
-  {
-    icon: BarChart3,
-    title: 'IoT Dashboard',
-    description: 'Real-time serial data viewer for connected devices.',
-    href: '/dashboard',
-    color: 'from-pink-400 to-rose-500',
-    glowColor: 'pink',
-  },
-];
-
-function getTimeAgo(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+// ─── Types ──────────────────────────────────────────────
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  isError?: boolean;
 }
 
-export default function HomePage() {
-  const { projects, isLoading, error, loadProjects, createProject, deleteProject } = useProjectStore();
-  const [showNewProject, setShowNewProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectBoard, setNewProjectBoard] = useState('ESP32 Dev Module');
+interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: Date;
+}
 
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+// ─── Code Block Parser ──────────────────────────────────
+function parseMessageContent(content: string) {
+  const parts: { type: 'text' | 'code'; content: string; language?: string }[] = [];
+  const regex = /```(\w*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
 
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
-    await createProject(newProjectName.trim(), newProjectBoard);
-    setNewProjectName('');
-    setShowNewProject(false);
-  };
-
-  const handleDeleteProject = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (confirm('Delete this project? This cannot be undone.')) {
-      deleteProject(id);
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: content.slice(lastIndex, match.index) });
     }
+    parts.push({ type: 'code', content: match[2].trim(), language: match[1] || 'cpp' });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', content: content.slice(lastIndex) });
+  }
+
+  return parts;
+}
+
+// ─── Markdown-ish text renderer ─────────────────────────
+function RenderText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <div className="space-y-2">
+      {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-2" />;
+        return (
+          <p key={i} className="leading-relaxed text-[14.5px] text-text-secondary/90">
+            {line.split(/(\*\*.*?\*\*|`[^`]+`)/).map((seg, j) => {
+              if (seg.startsWith('**') && seg.endsWith('**'))
+                return <strong key={j} className="font-bold text-text-primary underline decoration-cyan-primary/20">{seg.slice(2, -2)}</strong>;
+              if (seg.startsWith('`') && seg.endsWith('`'))
+                return <code key={j} className="px-1.5 py-0.5 rounded bg-cyan-primary/10 text-cyan-primary font-mono text-[12px] border border-cyan-primary/20">{seg.slice(1, -1)}</code>;
+              return <span key={j}>{seg}</span>;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Code Block Component ───────────────────────────────
+function CodeBlock({ code, language }: { code: string; language: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-surface-base">
-      <IDENavbar />
-
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-20 left-1/4 w-96 h-96 bg-cyan-primary/5 rounded-full blur-[100px]" />
-          <div className="absolute top-40 right-1/4 w-80 h-80 bg-purple-ai/5 rounded-full blur-[100px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,217,255,0.03)_0%,transparent_70%)]" />
+    <div className="my-5 rounded-xl overflow-hidden border border-white/5 bg-[#0D1117] shadow-2xl">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-[#FF5F56] shadow-inner" />
+            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] shadow-inner" />
+            <div className="w-3 h-3 rounded-full bg-[#27C93F] shadow-inner" />
+          </div>
+          <span className="text-[10px] font-bold font-mono text-text-muted/60 uppercase tracking-widest ml-1">{language}</span>
         </div>
-
-        <div className="relative max-w-6xl mx-auto px-6 py-20 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 mb-6">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-primary" />
-              <span className="text-xs font-medium text-cyan-primary">
-                Powered by 3 specialized AI models
-              </span>
-            </div>
-
-            <h1 className="text-5xl md:text-6xl font-bold mb-4 leading-tight">
-              <span className="text-text-primary">The </span>
-              <span className="gradient-text-cyan">Hardware IDE</span>
-              <br />
-              <span className="text-text-primary">Built for </span>
-              <span className="gradient-text-purple">Makers</span>
-            </h1>
-
-            <p className="text-lg text-text-secondary max-w-2xl mx-auto mb-8 leading-relaxed">
-              Write, flash, and debug Arduino & ESP32 firmware in the browser.
-              With an AI assistant that actually understands hardware.
-            </p>
-
-            <div className="flex items-center justify-center gap-3">
-              <Link href="/ide">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-cyan-primary to-cyan-500 hover:from-cyan-hover hover:to-cyan-600 text-surface-base font-semibold glow-cyan px-8"
-                >
-                  <Code2 className="w-5 h-5 mr-2" />
-                  Open IDE
-                </Button>
-              </Link>
-              <Link href="/flash">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-border-bright bg-surface-2/50 hover:bg-surface-3 text-text-primary px-8"
-                >
-                  <Zap className="w-5 h-5 mr-2" />
-                  Flash Firmware
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-
-          {/* Tech stack badges */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex items-center justify-center gap-3 mt-12 flex-wrap"
-          >
-            {['Next.js', 'Monaco Editor', 'Web Serial API', 'AI for Arduino', 'React Flow'].map(
-              (tech) => (
-                <span
-                  key={tech}
-                  className="px-3 py-1.5 text-xs text-text-muted bg-surface-2/50 border border-border-dim rounded-full"
-                >
-                  {tech}
-                </span>
-              )
-            )}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section className="max-w-6xl mx-auto px-6 pb-16">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-center mb-10"
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 transition-all active:scale-95"
         >
-          <h2 className="text-2xl font-bold text-text-primary mb-2">
-            Everything you need for embedded development
-          </h2>
-          <p className="text-sm text-text-secondary">
-            From code editor to firmware flash — all in one place.
-          </p>
-        </motion.div>
+          {copied ? <Check className="w-3.5 h-3.5 text-green-success" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? 'COPIED' : 'COPY CODE'}
+        </button>
+      </div>
+      <pre className="p-5 overflow-x-auto text-[13.5px] font-mono leading-relaxed text-blue-100/80 custom-scrollbar">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((feature, i) => {
-            const Icon = feature.icon;
-            return (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 + i * 0.08 }}
+// ─── Main Page ──────────────────────────────────────────
+export default function Home() {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Flash state
+  const [connectedPort, setConnectedPort] = useState<any>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [flashProgress, setFlashProgress] = useState(0);
+
+  // Persistence: Load from localStorage on mount
+  useEffect(() => {
+    const savedConvos = localStorage.getItem('circuito_convos');
+    const savedActiveId = localStorage.getItem('circuito_active_convo');
+
+    if (savedConvos) {
+      try {
+        const parsed = JSON.parse(savedConvos);
+        // Revive Date objects
+        const revived = parsed.map((c: any) => ({
+          ...c,
+          createdAt: new Date(c.createdAt),
+          messages: c.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          }))
+        }));
+        setConversations(revived);
+      } catch (e) {
+        console.error('Failed to load history:', e);
+      }
+    }
+
+    if (savedActiveId) {
+      setActiveConvoId(savedActiveId);
+    }
+  }, []);
+
+  // Persistence: Save to localStorage when state changes
+  useEffect(() => {
+    if (conversations.length > 0) {
+      localStorage.setItem('circuito_convos', JSON.stringify(conversations));
+    }
+  }, [conversations]);
+
+  useEffect(() => {
+    if (activeConvoId) {
+      localStorage.setItem('circuito_active_convo', activeConvoId);
+    }
+  }, [activeConvoId]);
+
+  // Persistence: Save to Supabase (Cloud Sync)
+  useEffect(() => {
+    const syncToCloud = async () => {
+      if (conversations.length === 0) return;
+
+      // Map to Supabase schema
+      const { error } = await supabase
+        .from('ai_conversations')
+        .upsert(
+          conversations.map(convo => ({
+            id: convo.id,
+            messages: convo.messages,
+            // You can add user_id here once auth is implemented
+          })),
+          { onConflict: 'id' }
+        );
+
+      if (error) console.error('Supabase Sync Error:', error);
+    };
+
+    const timer = setTimeout(syncToCloud, 2000); // Debounce sync
+    return () => clearTimeout(timer);
+  }, [conversations]);
+
+  // Persistence: Load from Supabase on start if local is empty
+  useEffect(() => {
+    const loadFromCloud = async () => {
+      const local = localStorage.getItem('circuito_convos');
+      if (local) return; // Prioritize local for speed
+
+      const { data, error } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (!error && data) {
+        const revived = data.map((c: any) => ({
+          id: c.id,
+          title: c.messages[0]?.content?.slice(0, 40) || 'Cloud Project',
+          messages: c.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          })),
+          createdAt: new Date(c.created_at)
+        }));
+        setConversations(revived);
+      }
+    };
+
+    loadFromCloud();
+  }, []);
+
+  const activeConvo = conversations.find(c => c.id === activeConvoId);
+  const messages = activeConvo?.messages || [];
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages, isTyping]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+    }
+  }, [input]);
+
+  const createConversation = useCallback((initialMessages: Message[] = []) => {
+    const newId = crypto.randomUUID();
+    const newConvo: Conversation = {
+      id: newId,
+      title: initialMessages.length > 0
+        ? (initialMessages.find(m => m.role === 'user')?.content.slice(0, 40) +
+          ((initialMessages.find(m => m.role === 'user')?.content.length || 0) > 40 ? '...' : '') ||
+          'Welcome Session')
+        : 'New Hardware Project',
+      messages: initialMessages,
+      createdAt: new Date(),
+    };
+
+    console.log('[Circuito AI] Creating new conversation:', newId);
+    setConversations(prev => [newConvo, ...prev]);
+    setActiveConvoId(newId);
+    return newId;
+  }, []);
+
+  // Persistence: No longer auto-creating a welcome session.
+  // We let the Welcome Screen (Landing Page) be the primary discovery state.
+  useEffect(() => {
+    const local = localStorage.getItem('circuito_convos');
+    if (!local && conversations.length === 0) {
+      console.log('[Circuito AI] Ready for fresh hardware architecting.');
+    }
+  }, [conversations.length]);
+
+  const deleteConversation = (id: string) => {
+    setConversations(prev => prev.filter(c => c.id !== id));
+    if (activeConvoId === id) {
+      setActiveConvoId(conversations.length > 1 ? conversations.find(c => c.id !== id)?.id || null : null);
+    }
+  };
+
+  const handleSend = async (retryContent?: string) => {
+    const textToSend = retryContent || input.trim();
+    if (!textToSend || (isTyping && !retryContent)) return;
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: textToSend,
+      timestamp: new Date(),
+    };
+
+    let convoId = activeConvoId;
+
+    // 1. If we're starting fresh, create the conversation WITH the user message
+    if (!convoId) {
+      convoId = createConversation([userMessage]);
+      setInput('');
+    } else {
+      // 2. Otherwise, add the User Message to the existing conversation
+      if (!retryContent) {
+        setConversations(prev => prev.map(c => {
+          if (c.id === convoId) {
+            // Check if we should update the title (if it's generic or first user msg)
+            const hasUserMsg = c.messages.some(m => m.role === 'user');
+            const newTitle = !hasUserMsg
+              ? (textToSend.slice(0, 40) + (textToSend.length > 40 ? '...' : ''))
+              : c.title;
+
+            return {
+              ...c,
+              title: newTitle,
+              messages: [...c.messages, userMessage],
+            };
+          }
+          return c;
+        }));
+        setInput('');
+      }
+    }
+
+    const assistantMsgId = crypto.randomUUID();
+
+    setIsTyping(true);
+
+    try {
+      console.log('[Circuito AI] Sending request for convo:', convoId);
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            ...messages
+              .filter(m => !m.isError)
+              .slice(-10)
+              .map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: textToSend },
+          ],
+          context: { board: 'ESP32' },
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+
+      // 2. Add Assistant Message placeholder
+      setConversations(prev => {
+        // We find the convo in the MOST RECENT state (which includes new ones from functional updates)
+        const updatedConversations = prev.map(c => {
+          if (c.id === convoId) {
+            const hasUserMsg = c.messages.some(m => m.id === userMessage.id);
+            const finalMessages = hasUserMsg ? [...c.messages] : [...c.messages, userMessage];
+
+            return {
+              ...c,
+              messages: [...finalMessages, {
+                id: assistantMsgId,
+                role: 'assistant' as const,
+                content: '',
+                timestamp: new Date(),
+              }],
+            };
+          }
+          return c;
+        });
+        return updatedConversations;
+      });
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let streamedContent = '';
+
+      if (reader) {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+
+              if (data.type === 'token') {
+                if (data.content && data.content.trim() !== '') {
+                  setIsTyping(false);
+                }
+
+                streamedContent += data.content;
+
+                // Optimized update: only update component state when content changes
+                setConversations(prev => prev.map(c => {
+                  if (c.id === convoId) {
+                    return {
+                      ...c,
+                      messages: c.messages.map(m =>
+                        m.id === assistantMsgId
+                          ? { ...m, content: streamedContent }
+                          : m
+                      ),
+                    };
+                  }
+                  return c;
+                }));
+              }
+            } catch (innerErr) {
+              console.error('[Circuito AI] Parse error in stream:', innerErr);
+            }
+          }
+        }
+      }
+      setIsTyping(false);
+    } catch (err) {
+      console.error('[Circuito AI] Critical AI Error:', err);
+      setConversations(prev => prev.map(c => {
+        if (c.id === convoId) {
+          // Ensure at least user message is there
+          const messagesWithUser = c.messages.some(m => m.id === userMessage.id)
+            ? c.messages
+            : [...c.messages, userMessage];
+
+          return {
+            ...c,
+            messages: [...messagesWithUser, {
+              id: assistantMsgId,
+              role: 'assistant' as const,
+              content: 'The connection to global hardware intel was lost. Want to try re-establishing the link?',
+              timestamp: new Date(),
+              isError: true,
+            }],
+          };
+        }
+        return c;
+      }));
+      setIsTyping(false);
+    }
+  };
+
+  const handleConnectDevice = async () => {
+    if (!isWebSerialSupported()) {
+      alert('Web Serial is not supported. Please use Chrome or Edge.');
+      return;
+    }
+    try {
+      const port = await requestPort();
+      setConnectedPort(port);
+    } catch (err) {
+      console.error('Connection failed:', err);
+    }
+  };
+
+  const handleFlashBin = async () => {
+    if (!connectedPort) {
+      alert('Please connect a device first.');
+      return;
+    }
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.bin';
+    fileInput.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setIsFlashing(true);
+      setFlashProgress(0);
+
+      try {
+        const data = new Uint8Array(await file.arrayBuffer());
+        await flashEsp32(data, {
+          port: connectedPort,
+          baudRate: 921600,
+          terminal: {
+            log: (msg) => console.log('[FLASH]', msg),
+            error: (msg) => console.error('[FLASH]', msg),
+            write: (msg) => console.log('[FLASH]', msg),
+          },
+          onProgress: (p) => setFlashProgress(p.percentage),
+        });
+        alert('✅ Firmware flashed successfully! Board is resetting...');
+      } catch (err: any) {
+        alert(`❌ Flash failed: ${err.message}`);
+      } finally {
+        setIsFlashing(false);
+        setFlashProgress(0);
+      }
+    };
+    fileInput.click();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const suggestions = [
+    { icon: '💡', text: 'Blink an LED on ESP32 GPIO 2', tag: 'Beginner' },
+    { icon: '🌡️', text: 'Read DHT22 temperature sensor', tag: 'Sensor' },
+    { icon: '📡', text: 'Create a WiFi web server on ESP32', tag: 'Networking' },
+    { icon: '🔊', text: 'Play a melody on a piezo buzzer', tag: 'Audio' },
+  ];
+
+  return (
+    <div className="h-screen flex bg-[#0A0F1C] text-text-primary selection:bg-cyan-primary/30">
+      {/* ─── Background Decor ────────────────────────── */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[35%] h-[35%] bg-purple-ai/10 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay" />
+      </div>
+
+      {/* ─── Sidebar ─────────────────────────────── */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.aside
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 300, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="h-full bg-[#0F1629]/95 backdrop-blur-xl border-r border-white/5 flex flex-col overflow-hidden shrink-0 z-30"
+          >
+            {/* Brand Header */}
+            <div className="p-5 border-b border-white/5">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 flex items-center justify-center">
+                  <img src="/brand/master-logo.png" alt="Circuito AI Logo" className="w-full h-full object-contain mix-blend-screen" />
+                </div>
+                <div>
+                  <h1 className="text-[15px] font-black text-white tracking-tight uppercase">Circuito AI</h1>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">Saved locally</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setActiveConvoId(null);
+                  setInput('');
+                }}
+                className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-primary/30 hover:bg-cyan-primary/5 text-text-primary hover:text-cyan-primary transition-all font-bold text-[13px] group shadow-inner"
               >
-                <Link href={feature.href}>
-                  <div className="group relative p-5 rounded-xl bg-surface-2/40 border border-border-dim hover:border-border-bright transition-all duration-300 cursor-pointer hover:bg-surface-2/60">
-                    <div
-                      className={`w-10 h-10 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}
+                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+                NEW SESSION
+              </button>
+            </div>
+
+            {/* Conversation List */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 custom-scrollbar">
+              {conversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full opacity-20 py-20">
+                  <CircuitBoard className="w-10 h-10 mb-3" />
+                  <p className="text-[11px] font-bold tracking-widest uppercase">Idle State</p>
+                </div>
+              ) : (
+                conversations.map(convo => (
+                  <div
+                    key={convo.id}
+                    onClick={() => setActiveConvoId(convo.id)}
+                    className={`w-full group flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${convo.id === activeConvoId
+                      ? 'bg-white/5 border border-white/10 shadow-lg'
+                      : 'text-text-muted hover:bg-white/[0.03] hover:text-text-secondary'
+                      }`}
+                  >
+                    <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${convo.id === activeConvoId ? 'text-cyan-primary' : 'opacity-30'}`} />
+                    <span className={`truncate flex-1 text-[13px] font-medium ${convo.id === activeConvoId ? 'text-white' : ''}`}>{convo.title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteConversation(convo.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red-400 transition-all p-1"
                     >
-                      <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-1">
-                      {feature.title}
-                    </h3>
-                    <p className="text-xs text-text-muted leading-relaxed">
-                      {feature.description}
-                    </p>
-                    <div className="mt-3 flex items-center gap-1 text-xs text-cyan-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span>Open</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </div>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Your Projects */}
-      <section className="max-w-6xl mx-auto px-6 pb-16">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-text-primary">
-            Your Projects
-          </h2>
-          <Button
-            size="sm"
-            onClick={() => setShowNewProject(true)}
-            className="bg-gradient-to-r from-cyan-primary to-cyan-500 hover:from-cyan-hover hover:to-cyan-600 text-surface-base text-xs gap-1.5 font-semibold"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Project
-          </Button>
-        </div>
-
-        {/* New project form */}
-        {showNewProject && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-4 rounded-xl bg-surface-2/40 border border-cyan-primary/20 mb-4"
-          >
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <label className="text-xs text-text-muted mb-1 block">Project Name</label>
-                <input
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
-                  placeholder="My_ESP32_Project"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-base border border-border-dim text-sm text-text-primary placeholder:text-text-muted outline-none focus:border-cyan-primary/30 transition-colors"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-muted mb-1 block">Board</label>
-                <select
-                  value={newProjectBoard}
-                  onChange={(e) => setNewProjectBoard(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-surface-base border border-border-dim text-sm text-text-primary outline-none focus:border-cyan-primary/30"
-                >
-                  <option value="ESP32 DevKit V1">ESP32 DevKit V1</option>
-                  <option value="ESP32-S3">ESP32-S3</option>
-                  <option value="Arduino Uno R3">Arduino Uno R3</option>
-                  <option value="Arduino Mega 2560">Arduino Mega 2560</option>
-                  <option value="ESP8266 NodeMCU">ESP8266 NodeMCU</option>
-                </select>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleCreateProject}
-                disabled={!newProjectName.trim()}
-                className="bg-cyan-primary hover:bg-cyan-hover text-surface-base font-semibold disabled:opacity-40"
-              >
-                Create
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowNewProject(false)}
-                className="text-text-muted hover:text-text-primary"
-              >
-                Cancel
-              </Button>
+                ))
+              )}
             </div>
-          </motion.div>
+
+            {/* Bottom: Device + Flash */}
+            <div className="p-4 border-t border-white/5 space-y-3 bg-[#0A0F1C]/50 backdrop-blur-md">
+              {isFlashing && (
+                <div className="px-1 space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-bold text-cyan-primary tracking-widest">
+                    <span>FLASH IN PROGRESS</span>
+                    <span>{Math.round(flashProgress)}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-cyan-primary via-blue-400 to-cyan-primary rounded-full shadow-[0_0_10px_rgba(0,217,255,0.5)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${flashProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleConnectDevice}
+                className={`w-full h-11 flex items-center gap-3 px-4 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${connectedPort
+                  ? 'bg-green-success/10 border border-green-success/30 text-green-success'
+                  : 'bg-white/5 border border-white/10 hover:border-cyan-primary/30 text-text-muted hover:text-white shadow-inner'
+                  }`}
+              >
+                <Usb className="w-4 h-4" />
+                {connectedPort ? 'HARDWARE SYNCED' : 'CONNECT DEVICE'}
+                {connectedPort && <div className="w-2 h-2 rounded-full bg-green-success ml-auto animate-pulse" />}
+              </button>
+
+              <button
+                onClick={handleFlashBin}
+                disabled={!connectedPort || isFlashing}
+                className="w-full h-11 flex items-center gap-3 px-4 rounded-xl border border-white/10 text-[12px] font-bold tracking-widest uppercase text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 hover:border-cyan-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+              >
+                {isFlashing ? (
+                  <RefreshCcw className="w-4 h-4 animate-spin text-cyan-primary" />
+                ) : (
+                  <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                )}
+                {isFlashing ? 'WRITING...' : 'FLASH FIRMWARE'}
+              </button>
+            </div>
+          </motion.aside>
         )}
+      </AnimatePresence>
 
-        {projects.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.5 }}
-            className="flex flex-col items-center py-12"
+      {/* ─── Main Chat Area ──────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 relative z-10">
+        {/* Header */}
+        <header className="h-16 border-b border-white/5 flex items-center px-6 gap-4 shrink-0 bg-[#0A0F1C]/80 backdrop-blur-xl">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-text-muted hover:text-white transition-all border border-white/5"
           >
-            <div className="w-16 h-16 rounded-2xl bg-surface-2/50 flex items-center justify-center mb-4">
-              <FolderOpen className="w-8 h-8 text-text-muted" />
+            {isSidebarOpen ? <PanelLeftClose className="w-4.5 h-4.5" /> : <PanelLeft className="w-4.5 h-4.5" />}
+          </button>
+
+          <div className="flex items-center gap-3">
+            {!isSidebarOpen && (
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img src="/brand/master-logo.png" alt="Logo" className="w-full h-full object-contain mix-blend-screen" />
+              </div>
+            )}
+            <div>
+              <h2 className="text-sm font-bold text-white tracking-tight">Current Session</h2>
+              <p className="text-[10px] text-text-muted flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Local Engine Active
+              </p>
             </div>
-            <p className="text-sm text-text-muted mb-4">No projects yet. Create your first one!</p>
-            <Button
-              onClick={() => setShowNewProject(true)}
-              variant="outline"
-              className="border-border-dim bg-surface-2/50 hover:bg-surface-3 text-text-primary text-xs gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Create Project
-            </Button>
-          </motion.div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {projects.map((project, i) => (
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            <button className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest">
+              <CircuitBoard className="w-3.5 h-3.5 text-cyan-primary" />
+              ESP32 Mode
+              <ChevronDown className="w-3 h-3 opacity-30" />
+            </button>
+          </div>
+        </header>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 custom-scrollbar">
+          {messages.length === 0 && !isTyping ? (
+            /* ─── Welcome Screen ─── */
+            <div className="h-full flex flex-col items-center justify-center">
               <motion.div
-                key={project.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.5 + i * 0.08 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: 'backOut' }}
+                className="text-center max-w-xl"
               >
-                <Link
-                  href="/ide"
-                >
-                  <div className="group p-4 rounded-xl bg-surface-2/30 border border-border-dim hover:border-border-bright transition-all cursor-pointer">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <FolderOpen className="w-4 h-4 text-text-muted" />
-                        <span className="text-sm font-medium text-text-primary">
-                          {project.name}
-                        </span>
-                      </div>
-                      <button
-                        onClick={(e) => handleDeleteProject(e, project.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:text-red-error text-text-muted"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-text-muted">
-                      <span className="flex items-center gap-1">
-                        <Cpu className="w-3 h-3" />
-                        {project.board}
-                      </span>
-                      <span>{getTimeAgo(project.updated_at)}</span>
+                <div className="relative mb-10 group">
+                  <div className="absolute inset-0 bg-cyan-primary/20 blur-[60px] rounded-full group-hover:bg-cyan-primary/30 transition-all duration-700" />
+                  <div className="w-24 h-24 flex items-center justify-center mx-auto relative z-10">
+                    <img src="/brand/master-logo.png" alt="Circuito AI Master" className="w-full h-full object-contain mix-blend-screen scale-150" />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-surface-3 border border-white/10 flex items-center justify-center shadow-xl z-20 overflow-hidden">
+                    <div className="w-full h-full p-1.5 flex items-center justify-center bg-gradient-to-br from-cyan-primary/20 to-blue-500/20">
+                      <Cpu className="w-5 h-5 text-blue-400" />
                     </div>
                   </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </section>
+                </div>
 
-      {/* Footer */}
-      <footer className="border-t border-border-dim py-6">
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-primary to-cyan-500 flex items-center justify-center">
-              <Zap className="w-3 h-3 text-surface-base" />
+                <h2 className="text-4xl font-black text-white mb-4 tracking-tighter leading-tight">
+                  Hardware intelligence, <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-primary via-blue-400 to-purple-ai">Simplified.</span>
+                </h2>
+                <p className="text-[15px] text-text-muted mb-12 max-w-sm mx-auto leading-relaxed font-medium">
+                  Describe your Arduino/ESP32 vision. I'll architect the code, assign the pins, and verify the logic.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+                  {suggestions.map((s, i) => (
+                    <motion.button
+                      key={i}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 + i * 0.1 }}
+                      onClick={() => {
+                        handleSend(s.text);
+                      }}
+                      className="group text-left p-5 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-cyan-primary/20 transition-all duration-300 shadow-lg"
+                    >
+                      <div className="flex items-center gap-3 mb-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/10 transition-colors">
+                          <span className="text-lg">{s.icon}</span>
+                        </div>
+                        <span className="text-[10px] font-black text-text-muted bg-white/5 px-2.5 py-1 rounded-lg tracking-widest uppercase group-hover:text-cyan-primary/80 transition-colors">{s.tag}</span>
+                      </div>
+                      <p className="text-[13px] text-text-secondary group-hover:text-white transition-colors leading-snug font-medium">{s.text}</p>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
             </div>
-            <span className="text-xs font-semibold text-text-secondary">
-              Circuito AI
-            </span>
-          </div>
-          <p className="text-[11px] text-text-muted">
-            Built for makers, by makers. © 2026
-          </p>
+          ) : (
+            /* ─── Message List ─── */
+            <div className="max-w-4xl mx-auto space-y-10 pb-20">
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-6 ${msg.role === 'user' ? 'justify-end' : ''}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-1">
+                      <img src="/brand/master-logo.png" alt="AI Agent" className="w-full h-full object-contain mix-blend-screen scale-125" />
+                    </div>
+                  )}
+                  <div className={`relative ${msg.role === 'user'
+                    ? 'max-w-[70%] bg-white/5 border border-white/10 rounded-3xl rounded-br-md px-6 py-4 shadow-xl'
+                    : 'flex-1'
+                    }`}>
+                    {msg.role === 'user' ? (
+                      <p className="text-[15px] text-white leading-relaxed font-medium">{msg.content}</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {msg.isError ? (
+                          <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/20 flex flex-col items-center gap-4 text-center max-w-md">
+                            <AlertCircle className="w-10 h-10 text-red-500/60" />
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-white uppercase tracking-tight">Signal Interrupted</h4>
+                              <p className="text-[13px] text-text-muted leading-relaxed">I couldn't complete that transmission. The AI host might be overloaded. Shall we try the uplink again?</p>
+                            </div>
+                            <button
+                              onClick={() => handleSend(messages[messages.indexOf(msg) - 1]?.content)}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-red-500/40 text-xs font-bold uppercase tracking-widest text-text-secondary hover:text-white transition-all active:scale-95"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              Re-attempt Sync
+                            </button>
+                          </div>
+                        ) : (
+                          parseMessageContent(msg.content).map((part, i) =>
+                            part.type === 'code' ? (
+                              <CodeBlock key={i} code={part.content} language={part.language || 'cpp'} />
+                            ) : (
+                              <RenderText key={i} text={part.content} />
+                            )
+                          )
+                        )}
+                      </div>
+                    )}
+                    {msg.role === 'user' && (
+                      <div className="absolute bottom-0 right-0 translate-y-1/2 translate-x-1/2 w-4 h-4 rounded-full bg-cyan-primary/20 blur-sm" />
+                    )}
+                  </div>
+                  {msg.role === 'user' && (
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-primary/10 to-blue-500/10 border border-white/10 flex items-center justify-center shrink-0 mt-1 shadow-inner">
+                      <div className="w-6 h-6 rounded-full bg-cyan-primary flex items-center justify-center text-[10px] font-black text-[#0A0F1C]">
+                        ME
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+
+              {/* Typing indicator */}
+              {isTyping && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex gap-6"
+                >
+                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                    <img src="/brand/master-logo.png" alt="Typing..." className="w-full h-full object-contain mix-blend-screen scale-125 animate-pulse" />
+                  </div>
+                  <div className="flex items-center gap-2 pt-4">
+                    <div className="w-2 h-2 rounded-full bg-cyan-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-cyan-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-cyan-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
         </div>
-      </footer>
+
+        {/* ─── Input Area ──────────────────────── */}
+        <div className="px-6 py-6 bg-gradient-to-t from-[#0A0F1C] via-[#0A0F1C] to-transparent">
+          <div className="max-w-4xl mx-auto relative group">
+            <div className="absolute inset-0 bg-cyan-primary/5 blur-3xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
+            <div className="relative flex items-end bg-[#0F1629]/80 backdrop-blur-xl border border-white/10 rounded-3xl focus-within:border-cyan-primary/40 focus-within:shadow-[0_0_40px_rgba(0,217,255,0.05)] transition-all overflow-hidden">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="State your hardware requirements..."
+                rows={1}
+                className="flex-1 bg-transparent px-6 py-5 text-[15px] text-white placeholder:text-text-muted/60 outline-none resize-none max-h-[200px] leading-relaxed font-medium"
+              />
+              <div className="p-3">
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!input.trim() || isTyping}
+                  className="w-12 h-12 flex items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-primary to-blue-600 hover:scale-105 active:scale-95 text-[#0A0F1C] transition-all disabled:opacity-20 disabled:grayscale disabled:scale-100 shadow-lg shadow-cyan-primary/20"
+                >
+                  {isTyping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-center mt-4">
+              <p className="text-[10px] font-bold text-text-muted/40 tracking-[0.2em] uppercase flex items-center gap-2">
+                <Zap className="w-3 h-3 text-cyan-primary/40" />
+                Neural Link Active | End-to-End Encrypted
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

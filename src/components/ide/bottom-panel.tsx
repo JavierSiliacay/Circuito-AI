@@ -10,9 +10,11 @@ import {
     ChevronDown,
     X,
     Usb,
+    RotateCcw,
 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { useSerialStore } from '@/store/serial-store';
+import { resetBoardForFlash } from '@/lib/web-serial';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Select,
@@ -40,6 +42,8 @@ export default function BottomPanel() {
         toggleBottomPanel,
         baudRate,
         setBaudRate,
+        outputContent,
+        addOutput,
     } = useIDEStore();
 
     const {
@@ -113,6 +117,20 @@ export default function BottomPanel() {
                                 ))}
                             </SelectContent>
                         </Select>
+
+                        <button
+                            onClick={async () => {
+                                if (activeDevice?.port) {
+                                    addOutput(`[HARDWARE] Manually resetting ${activeDevice.name}...`);
+                                    await resetBoardForFlash(activeDevice.port);
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-cyan-primary hover:bg-cyan-primary/10 rounded transition-all border border-cyan-primary/30"
+                            title="Hardware Reset"
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                            RESET BOARD
+                        </button>
                     </div>
                 )}
 
@@ -209,8 +227,18 @@ export default function BottomPanel() {
                                 )}
 
                                 {bottomPanelTab === 'output' && (
-                                    <div className="text-text-muted italic">
-                                        No build output yet. Click Build or Flash to compile.
+                                    <div className="space-y-0.5">
+                                        {outputContent.length === 0 ? (
+                                            <div className="text-text-muted italic">
+                                                No build output yet. Click Verify or Upload to compile.
+                                            </div>
+                                        ) : (
+                                            outputContent.map((line, i) => (
+                                                <div key={i} className="text-text-secondary">
+                                                    {line}
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 )}
 

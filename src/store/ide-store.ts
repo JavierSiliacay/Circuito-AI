@@ -53,8 +53,15 @@ interface IDEState {
     isAITyping: boolean;
     isAIApplying: boolean;
     aiApplyProgress: number;  // 0-100
+    isCompiling: boolean;
+    isUploading: boolean;
+    outputContent: string[];
 
     // Actions
+    setIsCompiling: (compiling: boolean) => void;
+    setIsUploading: (uploading: boolean) => void;
+    addOutput: (line: string) => void;
+    clearOutputContent: () => void;
     setFiles: (files: FileNode[]) => void;
     setActiveFile: (id: string) => void;
     setEditorContent: (content: string) => void;
@@ -191,6 +198,14 @@ export const useIDEStore = create<IDEState>((set) => ({
     isAITyping: false,
     isAIApplying: false,
     aiApplyProgress: 0,
+    isCompiling: false,
+    isUploading: false,
+    outputContent: [],
+
+    setIsCompiling: (compiling) => set({ isCompiling: compiling }),
+    setIsUploading: (uploading) => set({ isUploading: uploading }),
+    addOutput: (line) => set((state) => ({ outputContent: [...state.outputContent, line] })),
+    clearOutputContent: () => set({ outputContent: [] }),
 
     setFiles: (files) => set({ files }),
 

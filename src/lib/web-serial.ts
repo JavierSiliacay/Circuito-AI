@@ -124,6 +124,16 @@ export async function openConnection(
 
     await port.open({ baudRate });
 
+    // For ESP32/Arduino, pulsing DTR/RTS can help initialize the chip/monitor.
+    // We set them to false, wait, then true, which is a standard "soft" start.
+    try {
+        await (port as any).setSignals({ dataTerminalReady: false, requestToSend: false });
+        await new Promise(r => setTimeout(r, 100));
+        await (port as any).setSignals({ dataTerminalReady: true, requestToSend: true });
+    } catch (e) {
+        console.warn('Could not set control signals:', e);
+    }
+
     const readable = port.readable as ReadableStream<Uint8Array> | null;
     const writable = port.writable as WritableStream<Uint8Array> | null;
     return {
@@ -132,6 +142,26 @@ export async function openConnection(
         writer: writable ? writable.getWriter() : null,
         isOpen: true,
     };
+}
+
+/**
+ * Specifically reset ESP32/Arduino boards to enter bootloader mode
+ * This uses the standard DTR/RTS toggle pattern used by esptool
+ */
+export async function resetBoardForFlash(port: SerialPort): Promise<void> {
+    try {
+        // Standard reset sequence for ESP32:
+        // 1. RTS = 1, DTR = 0 -> enters boot mode
+        // 2. Wait
+        // 3. Reset signals
+        await (port as any).setSignals({ dataTerminalReady: false, requestToSend: true });
+        await new Promise(r => setTimeout(r, 100));
+        await (port as any).setSignals({ dataTerminalReady: true, requestToSend: false });
+        await new Promise(r => setTimeout(r, 50));
+        await (port as any).setSignals({ dataTerminalReady: false, requestToSend: false });
+    } catch (e) {
+        console.error('Failed to reset board:', e);
+    }
 }
 
 // Close a serial connection

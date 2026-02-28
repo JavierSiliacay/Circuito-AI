@@ -95,10 +95,19 @@ ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations for now (public access)
 -- Replace these with proper auth policies when you add user authentication
+DROP POLICY IF EXISTS "Allow all access to projects" ON projects;
 CREATE POLICY "Allow all access to projects" ON projects FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all access to project_files" ON project_files;
 CREATE POLICY "Allow all access to project_files" ON project_files FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all access to board_configs" ON board_configs;
 CREATE POLICY "Allow all access to board_configs" ON board_configs FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all access to flash_history" ON flash_history;
 CREATE POLICY "Allow all access to flash_history" ON flash_history FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all access to ai_conversations" ON ai_conversations;
 CREATE POLICY "Allow all access to ai_conversations" ON ai_conversations FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================
@@ -112,14 +121,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
 CREATE TRIGGER update_projects_updated_at
     BEFORE UPDATE ON projects
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_project_files_updated_at ON project_files;
 CREATE TRIGGER update_project_files_updated_at
     BEFORE UPDATE ON project_files
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_ai_conversations_updated_at ON ai_conversations;
 CREATE TRIGGER update_ai_conversations_updated_at
     BEFORE UPDATE ON ai_conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();

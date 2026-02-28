@@ -1,9 +1,11 @@
 'use client';
 
-import { Bot, Send, MoreVertical, Sparkles, Copy, Check, ClipboardCheck, Play, Loader2 } from 'lucide-react';
+import { Send, MoreVertical, Copy, Check, ClipboardCheck, Play, Loader2 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { getInstalledLibraries } from '@/lib/library-manager';
 import { Button } from '@/components/ui/button';
+import { CircuitoLogo } from '@/components/ui/logo';
+import { BrandBot } from '@/components/ui/brand-bot';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect, useCallback } from 'react';
 
@@ -250,9 +252,7 @@ export default function AIPanel() {
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border-dim shrink-0">
                     <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-ai to-indigo-500 flex items-center justify-center glow-purple">
-                            <Sparkles className="w-4 h-4 text-white" />
-                        </div>
+                        <CircuitoLogo className="w-8 h-8" />
                         <div>
                             <h3 className="text-sm font-semibold text-text-primary">
                                 Circuito AI
@@ -284,8 +284,8 @@ export default function AIPanel() {
                                     }`}
                             >
                                 {msg.role === 'assistant' && (
-                                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-ai to-indigo-500 flex items-center justify-center shrink-0 mt-0.5">
-                                        <Bot className="w-3.5 h-3.5 text-white" />
+                                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-ai/20 to-indigo-500/20 border border-purple-ai/30 flex items-center justify-center shrink-0 mt-0.5">
+                                        <BrandBot className="w-4 h-4 text-purple-ai" />
                                     </div>
                                 )}
                                 <div
@@ -443,8 +443,8 @@ export default function AIPanel() {
                                     exit={{ opacity: 0, y: -8 }}
                                     className="flex gap-2.5"
                                 >
-                                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-ai to-indigo-500 flex items-center justify-center shrink-0">
-                                        <Bot className="w-3.5 h-3.5 text-white" />
+                                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-ai/20 to-indigo-500/20 border border-purple-ai/30 flex items-center justify-center shrink-0">
+                                        <BrandBot className="w-4 h-4 text-purple-ai" />
                                     </div>
                                     <div className="bg-surface-3/60 border border-border-dim rounded-2xl rounded-bl-sm px-4 py-3">
                                         <div className="flex gap-1">
