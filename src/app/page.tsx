@@ -157,6 +157,18 @@ export default function Home() {
     }
   }, [selectedBoard]);
 
+  // Usage Limit (Guest Mode)
+  const [promptCount, setPromptCount] = useState(0);
+
+  useEffect(() => {
+    const savedCount = localStorage.getItem('circuito_prompt_count');
+    if (savedCount) setPromptCount(parseInt(savedCount, 10));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('circuito_prompt_count', promptCount.toString());
+  }, [promptCount]);
+
   // Persistence: Load from localStorage on mount
   useEffect(() => {
     const savedConvos = localStorage.getItem('circuito_convos');
@@ -309,6 +321,47 @@ export default function Home() {
   const handleSend = async (retryContent?: string) => {
     const textToSend = retryContent || input.trim();
     if (!textToSend || (isTyping && !retryContent)) return;
+
+    // Check usage limit for guest users
+    if (promptCount >= 20) {
+      const limitMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: "According to my creator Javier G. Siliacay he instructed me to limit my potential since he haven't configure the google sign-in",
+        timestamp: new Date(),
+      };
+
+      if (!activeConvoId) {
+        const userMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: textToSend,
+          timestamp: new Date(),
+        };
+        createConversation([userMessage, limitMessage]);
+      } else {
+        const userMessage: Message = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: textToSend,
+          timestamp: new Date(),
+        };
+        setConversations(prev => prev.map(c => {
+          if (c.id === activeConvoId) {
+            return {
+              ...c,
+              messages: [...c.messages, userMessage, limitMessage],
+            };
+          }
+          return c;
+        }));
+      }
+      setInput('');
+      return;
+    }
+
+    // Increment usage count
+    setPromptCount(prev => prev + 1);
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -566,8 +619,10 @@ export default function Home() {
                 <div>
                   <h1 className="text-[15px] font-black text-white tracking-tight uppercase">Circuito AI</h1>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">Saved locally</span>
+                    <div className={`w-1 h-1 rounded-full ${promptCount < 20 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                    <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">
+                      Guest Mode ({Math.max(0, 20 - promptCount)} prompts left)
+                    </span>
                   </div>
                 </div>
               </div>
