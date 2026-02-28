@@ -199,9 +199,7 @@ export default function Home() {
 
   // Persistence: Save to localStorage when state changes
   useEffect(() => {
-    if (conversations.length > 0) {
-      localStorage.setItem('circuito_convos', JSON.stringify(conversations));
-    }
+    localStorage.setItem('circuito_convos', JSON.stringify(conversations));
   }, [conversations]);
 
   useEffect(() => {
@@ -261,6 +259,29 @@ export default function Home() {
 
     loadFromCloud();
   }, []);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close sidebar by default on mobile
+  useEffect(() => {
+    if (isMobile) setIsSidebarOpen(false);
+    else setIsSidebarOpen(true);
+  }, [isMobile]);
+
+  const clearAllConversations = () => {
+    if (window.confirm("Are you sure you want to delete all hardware architecture history? This cannot be undone.")) {
+      setConversations([]);
+      setActiveConvoId(null);
+      localStorage.removeItem('circuito_convos');
+    }
+  };
 
   const activeConvo = conversations.find(c => c.id === activeConvoId);
   const messages = activeConvo?.messages || [];
@@ -600,121 +621,145 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay" />
       </div>
 
-      {/* ─── Sidebar ─────────────────────────────── */}
       <AnimatePresence>
         {isSidebarOpen && (
-          <motion.aside
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 300, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="h-full bg-[#0F1629]/95 backdrop-blur-xl border-r border-white/5 flex flex-col overflow-hidden shrink-0 z-30"
-          >
-            {/* Brand Header */}
-            <div className="p-5 border-b border-white/5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 flex items-center justify-center">
-                  <img src="/brand/master-logo.png" alt="Circuito AI Logo" className="w-full h-full object-contain mix-blend-screen" />
-                </div>
-                <div>
-                  <h1 className="text-[15px] font-black text-white tracking-tight uppercase">Circuito AI</h1>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className={`w-1 h-1 rounded-full ${promptCount < 20 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                    <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">
-                      Guest Mode ({Math.max(0, 20 - promptCount)} prompts left)
-                    </span>
+          <>
+            {/* Backdrop for Mobile */}
+            {isMobile && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsSidebarOpen(false)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+              />
+            )}
+            <motion.aside
+              initial={{ x: -300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -300, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className={`fixed lg:relative h-full bg-[#0F1629]/98 lg:bg-[#0F1629]/95 backdrop-blur-2xl border-r border-white/5 flex flex-col overflow-hidden shrink-0 z-50 ${isMobile ? 'w-[280px]' : 'w-[300px]'}`}
+            >
+              {/* Brand Header */}
+              <div className="p-5 border-b border-white/5">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 flex items-center justify-center">
+                    <img src="/brand/master-logo.png" alt="Circuito AI Logo" className="w-full h-full object-contain mix-blend-screen" />
+                  </div>
+                  <div>
+                    <h1 className="text-[15px] font-black text-white tracking-tight uppercase">Circuito AI</h1>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className={`w-1 h-1 rounded-full ${promptCount < 20 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+                      <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">
+                        Guest Mode ({Math.max(0, 20 - promptCount)} prompts left)
+                      </span>
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => {
+                    setActiveConvoId(null);
+                    setInput('');
+                  }}
+                  className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-primary/30 hover:bg-cyan-primary/5 text-text-primary hover:text-cyan-primary transition-all font-bold text-[13px] group shadow-inner"
+                >
+                  <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+                  NEW SESSION
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setActiveConvoId(null);
-                  setInput('');
-                }}
-                className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-primary/30 hover:bg-cyan-primary/5 text-text-primary hover:text-cyan-primary transition-all font-bold text-[13px] group shadow-inner"
-              >
-                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
-                NEW SESSION
-              </button>
-            </div>
 
-            {/* Conversation List */}
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 custom-scrollbar">
-              {conversations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full opacity-20 py-20">
-                  <CircuitBoard className="w-10 h-10 mb-3" />
-                  <p className="text-[11px] font-bold tracking-widest uppercase">Idle State</p>
-                </div>
-              ) : (
-                conversations.map(convo => (
-                  <div
-                    key={convo.id}
-                    onClick={() => setActiveConvoId(convo.id)}
-                    className={`w-full group flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${convo.id === activeConvoId
-                      ? 'bg-white/5 border border-white/10 shadow-lg'
-                      : 'text-text-muted hover:bg-white/[0.03] hover:text-text-secondary'
-                      }`}
+              {/* Conversation List Header */}
+              <div className="px-5 pt-6 pb-2 flex items-center justify-between">
+                <h3 className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">History</h3>
+                {conversations.length > 0 && (
+                  <button
+                    onClick={clearAllConversations}
+                    className="text-[10px] font-bold text-red-400/50 hover:text-red-400 transition-colors uppercase tracking-wider"
                   >
-                    <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${convo.id === activeConvoId ? 'text-cyan-primary' : 'opacity-30'}`} />
-                    <span className={`truncate flex-1 text-[13px] font-medium ${convo.id === activeConvoId ? 'text-white' : ''}`}>{convo.title}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteConversation(convo.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red-400 transition-all p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Bottom: Device + Flash */}
-            <div className="p-4 border-t border-white/5 space-y-3 bg-[#0A0F1C]/50 backdrop-blur-md">
-              {isFlashing && (
-                <div className="px-1 space-y-1.5">
-                  <div className="flex justify-between text-[10px] font-bold text-cyan-primary tracking-widest">
-                    <span>FLASH IN PROGRESS</span>
-                    <span>{Math.round(flashProgress)}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-cyan-primary via-blue-400 to-cyan-primary rounded-full shadow-[0_0_10px_rgba(0,217,255,0.5)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${flashProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={handleConnectDevice}
-                className={`w-full h-11 flex items-center gap-3 px-4 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${connectedPort
-                  ? 'bg-green-success/10 border border-green-success/30 text-green-success'
-                  : 'bg-white/5 border border-white/10 hover:border-cyan-primary/30 text-text-muted hover:text-white shadow-inner'
-                  }`}
-              >
-                <Usb className="w-4 h-4" />
-                {connectedPort ? 'HARDWARE SYNCED' : 'CONNECT DEVICE'}
-                {connectedPort && <div className="w-2 h-2 rounded-full bg-green-success ml-auto animate-pulse" />}
-              </button>
-
-              <button
-                onClick={handleFlashBin}
-                disabled={!connectedPort || isFlashing}
-                className="w-full h-11 flex items-center gap-3 px-4 rounded-xl border border-white/10 text-[12px] font-bold tracking-widest uppercase text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 hover:border-cyan-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
-              >
-                {isFlashing ? (
-                  <RefreshCcw className="w-4 h-4 animate-spin text-cyan-primary" />
-                ) : (
-                  <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                    Clear All
+                  </button>
                 )}
-                {isFlashing ? 'WRITING...' : 'FLASH FIRMWARE'}
-              </button>
-            </div>
-          </motion.aside>
+              </div>
+
+              {/* Conversation List */}
+              <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar">
+                {conversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full opacity-20 py-20">
+                    <CircuitBoard className="w-10 h-10 mb-3" />
+                    <p className="text-[11px] font-bold tracking-widest uppercase">Idle State</p>
+                  </div>
+                ) : (
+                  conversations.map(convo => (
+                    <div
+                      key={convo.id}
+                      onClick={() => setActiveConvoId(convo.id)}
+                      className={`w-full group flex items-center gap-3 px-3.5 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer ${convo.id === activeConvoId
+                        ? 'bg-white/5 border border-white/10 shadow-lg'
+                        : 'text-text-muted hover:bg-white/[0.03] hover:text-text-secondary'
+                        }`}
+                    >
+                      <MessageSquare className={`w-4 h-4 shrink-0 transition-colors ${convo.id === activeConvoId ? 'text-cyan-primary' : 'opacity-30'}`} />
+                      <span className={`truncate flex-1 text-[13px] font-medium ${convo.id === activeConvoId ? 'text-white' : ''}`}>{convo.title}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteConversation(convo.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red-400 transition-all p-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Bottom: Device + Flash */}
+              <div className="p-4 border-t border-white/5 space-y-3 bg-[#0A0F1C]/50 backdrop-blur-md">
+                {isFlashing && (
+                  <div className="px-1 space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold text-cyan-primary tracking-widest">
+                      <span>FLASH IN PROGRESS</span>
+                      <span>{Math.round(flashProgress)}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-cyan-primary via-blue-400 to-cyan-primary rounded-full shadow-[0_0_10px_rgba(0,217,255,0.5)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${flashProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleConnectDevice}
+                  className={`w-full h-11 flex items-center gap-3 px-4 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${connectedPort
+                    ? 'bg-green-success/10 border border-green-success/30 text-green-success'
+                    : 'bg-white/5 border border-white/10 hover:border-cyan-primary/30 text-text-muted hover:text-white shadow-inner'
+                    }`}
+                >
+                  <Usb className="w-4 h-4" />
+                  {connectedPort ? 'HARDWARE SYNCED' : 'CONNECT DEVICE'}
+                  {connectedPort && <div className="w-2 h-2 rounded-full bg-green-success ml-auto animate-pulse" />}
+                </button>
+
+                <button
+                  onClick={handleFlashBin}
+                  disabled={!connectedPort || isFlashing}
+                  className="w-full h-11 flex items-center gap-3 px-4 rounded-xl border border-white/10 text-[12px] font-bold tracking-widest uppercase text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 hover:border-cyan-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                >
+                  {isFlashing ? (
+                    <RefreshCcw className="w-4 h-4 animate-spin text-cyan-primary" />
+                  ) : (
+                    <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                  )}
+                  {isFlashing ? 'WRITING...' : 'FLASH FIRMWARE'}
+                </button>
+              </div>
+            </motion.aside>
+          </>
         )}
       </AnimatePresence>
 
@@ -743,21 +788,21 @@ export default function Home() {
               </div>
             )}
             <div>
-              <h2 className="text-sm font-bold text-white tracking-tight">Current Session</h2>
-              <p className="text-[10px] text-text-muted flex items-center gap-1.5 font-medium">
+              <h2 className="text-sm font-bold text-white tracking-tight leading-tight">Current Session</h2>
+              <p className="hidden xs:flex text-[10px] text-text-muted items-center gap-1.5 font-medium mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 Local Engine Active
               </p>
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setIsBoardManagerOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest"
+              className="flex items-center gap-2 px-2.5 sm:px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] sm:text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest"
             >
-              <CircuitBoard className="w-3.5 h-3.5 text-cyan-primary" />
-              {selectedBoard?.name || 'ESP32 Mode'}
+              <CircuitBoard className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-cyan-primary" />
+              <span className="max-w-[80px] sm:max-w-none truncate">{selectedBoard?.name || 'ESP32 Mode'}</span>
               <ChevronDown className="w-3 h-3 opacity-30" />
             </button>
           </div>
