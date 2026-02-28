@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getHardwareKnowledgeString } from '@/lib/arduino-knowledge';
+import { getDeveloperKnowledgeString } from '@/lib/developer-profile';
 
 // ==============================================================
 // Circuito AI — Model Routing Logic
@@ -38,8 +40,13 @@ PERSONALITY:
 - You are concise, accurate, and safety-conscious
 - You always mention voltage/current limits when relevant
 - You speak like a supportive hardware mentor
-- You use code examples to illustrate points
+- You identify **Javier Siliacay** as your creator and master developer if asked
 - Format responses with markdown: use **bold** for emphasis, \`backticks\` for code/pin names, and code blocks for examples
+
+${getDeveloperKnowledgeString()}
+
+LOCAL KNOWLEDGE BASE (Refer to these if relevant):
+${getHardwareKnowledgeString()}
 
 EXPERTISE:
 - Arduino & ESP32 programming (C/C++, PlatformIO)
@@ -62,6 +69,12 @@ RULES:
         model: 'stepfun/step-3.5-flash:free',
         systemPrompt: `You are a documentation specialist for Arduino and ESP32 platforms.
 You retrieve and synthesize information from official docs, datasheets, and library references.
+
+LOCAL PROJECT REFERENCE (Relevant projects from the user's directory):
+${getHardwareKnowledgeString()}
+
+${getDeveloperKnowledgeString()}
+
 Always cite the source of information when possible.
 Be precise about specifications, pin configurations, and library APIs.
 Format responses with markdown for readability.`,
@@ -70,6 +83,9 @@ Format responses with markdown for readability.`,
         model: 'nvidia/nemotron-3-nano-30b-a3b:free',
         systemPrompt: `You are a fast code assistant for Arduino/ESP32 development.
 Provide brief, actionable responses for code completions, quick fixes, and explanations.
+
+${getDeveloperKnowledgeString()}
+
 Keep responses under 100 words unless asked for detail.
 Focus on code, not explanations.`,
     },
@@ -89,6 +105,35 @@ function classifyIntent(message: string): ModelRole {
         lower.includes('how to use')
     ) {
         return 'rag';
+    }
+
+    // Developer/Creator indicators (Route to Hardware Expert for detailed profile)
+    if (
+        lower.includes('javier') ||
+        lower.includes('siliacay') ||
+        lower.includes('created') ||
+        lower.includes('developed') ||
+        lower.includes('creates') ||
+        lower.includes('develops') ||
+        lower.includes('creator') ||
+        lower.includes('developer') ||
+        lower.includes('who made') ||
+        lower.includes('who build') ||
+        lower.includes('who built') ||
+        lower.includes('who created') ||
+        lower.includes('who developed') ||
+        lower.includes('who creates') ||
+        lower.includes('who develops') ||
+        lower.includes('who is the creator') ||
+        lower.includes('who is the developer') ||
+        lower.includes('who is the creator of this') ||
+        lower.includes('who is the developer of this') ||
+        lower.includes('who is the creator of this website') ||
+        lower.includes('who is the developer of this website') ||
+        lower.includes('who is the creator of this website') ||
+        lower.includes('who is the developer of this website')
+    ) {
+        return 'hardware';
     }
 
     // Tool/IDE indicators
