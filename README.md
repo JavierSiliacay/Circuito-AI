@@ -29,7 +29,7 @@ A dedicated dashboard for managing connected devices and viewing real-time seria
 - **Editor Environment**: Monaco Editor
 - **Hardware Communication**: Web Serial API
 - **Database and Storage**: Supabase
-- **Artificial Intelligence**: OpenRouter API integration featuring specialized models for hardware engineering
+- **Artificial Intelligence**: AI API integration featuring specialized models for hardware engineering
 - **Animations and UI**: Framer Motion and Shadcn/UI for a premium, responsive interface
 
 ## Current Development Progress
@@ -64,3 +64,5 @@ A dedicated dashboard for managing connected devices and viewing real-time seria
 ---
 
 Built for developers who want to focus on their hardware, not their toolchain.
+---
+Made by: Javier G. Siliacay
