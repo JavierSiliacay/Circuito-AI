@@ -27,6 +27,8 @@ import { CircuitoLogo } from '@/components/ui/logo';
 import { isWebSerialSupported, requestPort } from '@/lib/web-serial';
 import { flashEsp32 } from '@/lib/esp-flash';
 import { supabase } from '@/lib/supabase';
+import BoardManager from '@/components/board-manager';
+import { BoardDefinition, getInstalledBoardsList } from '@/lib/board-manager';
 
 // ─── Types ──────────────────────────────────────────────
 interface Message {
@@ -139,6 +141,21 @@ export default function Home() {
   const [connectedPort, setConnectedPort] = useState<any>(null);
   const [isFlashing, setIsFlashing] = useState(false);
   const [flashProgress, setFlashProgress] = useState(0);
+
+  // Board state
+  const [isBoardManagerOpen, setIsBoardManagerOpen] = useState(false);
+  const [selectedBoard, setSelectedBoard] = useState<BoardDefinition | null>(null);
+
+  // Load the first installed board as default
+  useEffect(() => {
+    if (!selectedBoard) {
+      const installed = getInstalledBoardsList();
+      if (installed.length > 0) {
+        const esp32 = installed.find(b => b.id === 'esp32-devkit-v1');
+        setSelectedBoard(esp32 || installed[0]);
+      }
+    }
+  }, [selectedBoard]);
 
   // Persistence: Load from localStorage on mount
   useEffect(() => {
@@ -347,7 +364,10 @@ export default function Home() {
               .map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: textToSend },
           ],
-          context: { board: 'ESP32' },
+          context: {
+            board: selectedBoard?.name || 'ESP32',
+            deviceType: selectedBoard?.architecture || 'esp32'
+          },
         }),
       });
 
@@ -643,6 +663,13 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      <BoardManager
+        isOpen={isBoardManagerOpen}
+        onClose={() => setIsBoardManagerOpen(false)}
+        onSelectBoard={(board) => setSelectedBoard(board)}
+        mode="selector"
+      />
+
       {/* ─── Main Chat Area ──────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Header */}
@@ -670,9 +697,12 @@ export default function Home() {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <button className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest">
+            <button
+              onClick={() => setIsBoardManagerOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest"
+            >
               <CircuitBoard className="w-3.5 h-3.5 text-cyan-primary" />
-              ESP32 Mode
+              {selectedBoard?.name || 'ESP32 Mode'}
               <ChevronDown className="w-3 h-3 opacity-30" />
             </button>
           </div>

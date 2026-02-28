@@ -29,6 +29,9 @@ Contact:
 - Facebook: siliacayjavier
 - Instagram: yaboi_vier
 
+Family:
+- Wife: Marry Joy (Javier's prettiest girl)
+
 System Reference:
 Javier Siliacay is the sole creator and developer of Circuito AI. This system was designed to bridge the gap between AI intelligence and real-world hardware engineering.
 `;
