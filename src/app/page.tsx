@@ -22,7 +22,10 @@ import {
   RefreshCcw,
   AlertCircle,
   RotateCcw,
+  Monitor,
+  FolderOpen,
 } from 'lucide-react';
+import { useIDEStore } from '@/store/ide-store';
 import { CircuitoLogo } from '@/components/ui/logo';
 import { isWebSerialSupported, requestPort } from '@/lib/web-serial';
 import { flashEsp32 } from '@/lib/esp-flash';
@@ -48,12 +51,16 @@ interface Conversation {
 
 // ─── Code Block Parser ──────────────────────────────────
 function parseMessageContent(content: string) {
-  const parts: { type: 'text' | 'code'; content: string; language?: string }[] = [];
-  const regex = /```(\w*)\n([\s\S]*?)```/g;
+  const parts: { type: 'text' | 'code'; content: string; language?: string; isStreaming?: boolean }[] = [];
+
+  // Regex that matches either closed blocks or an open block at the very end
+  // 1: Complete blocks: ```lang\ncode```
+  // 2: Open block at end: ```lang\ncode(end-of-string)
+  const fullBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = regex.exec(content)) !== null) {
+  while ((match = fullBlockRegex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       parts.push({ type: 'text', content: content.slice(lastIndex, match.index) });
     }
@@ -61,11 +68,40 @@ function parseMessageContent(content: string) {
     lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < content.length) {
-    parts.push({ type: 'text', content: content.slice(lastIndex) });
+  // Check for an unclosed block at the end
+  const remaining = content.slice(lastIndex);
+  const openBlockMatch = /```(\w*)\n([\s\S]*)$/.exec(remaining);
+
+  if (openBlockMatch) {
+    const textBefore = remaining.slice(0, openBlockMatch.index);
+    if (textBefore) {
+      parts.push({ type: 'text', content: textBefore });
+    }
+    parts.push({
+      type: 'code',
+      content: openBlockMatch[2].trim(),
+      language: openBlockMatch[1] || 'cpp',
+      isStreaming: true
+    });
+  } else if (remaining) {
+    parts.push({ type: 'text', content: remaining });
   }
 
   return parts;
+}
+
+/**
+ * Extracts the latest (or currently being written) code block from a streaming response
+ */
+function extractLatestCodeBlock(content: string) {
+  // Regex that matches both closed and open-ended code blocks
+  const regex = /```(?:\w+)?\n([\s\S]*?)(?:$|```)/g;
+  let lastCode = null;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    if (match[1]) lastCode = match[1];
+  }
+  return lastCode;
 }
 
 // ─── Markdown-ish text renderer ─────────────────────────
@@ -91,9 +127,17 @@ function RenderText({ text }: { text: string }) {
   );
 }
 
+// ─── Arduino Logo Component ──────────────────────────
+function ArduinoLogo({ className = "w-4 h-4" }: { className?: string }) {
+  return <img src="/brand/arduino-logo.svg" alt="Arduino" className={className} />;
+}
+
 // ─── Code Block Component ───────────────────────────────
-function CodeBlock({ code, language }: { code: string; language: string }) {
+function CodeBlock({ code, language, isStreaming }: { code: string; language: string; isStreaming?: boolean }) {
+  const { isBridgeConnected, localProjectPath, syncToLocalFile } = useIDEStore();
+
   const [copied, setCopied] = useState(false);
+  const [synced, setSynced] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
@@ -101,27 +145,58 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSync = async () => {
+    if (!localProjectPath) {
+      alert("Please set your Local Arduino Project path in settings (click the Bridge icon in the header).");
+      return;
+    }
+    await syncToLocalFile(code, true);
+    setSynced(true);
+    setTimeout(() => setSynced(false), 3000);
+  };
+
   return (
     <div className="my-5 rounded-xl overflow-hidden border border-white/5 bg-[#0D1117] shadow-2xl">
       <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-[#FF5F56] shadow-inner" />
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] shadow-inner" />
-            <div className="w-3 h-3 rounded-full bg-[#27C93F] shadow-inner" />
+            <div className={`w-3 h-3 rounded-full ${isStreaming ? 'animate-pulse bg-[#FF5F56]' : 'bg-[#FF5F56]'} shadow-inner`} />
+            <div className={`w-3 h-3 rounded-full ${isStreaming ? 'animate-pulse bg-[#FFBD2E]' : 'bg-[#FFBD2E]'} shadow-inner`} />
+            <div className={`w-3 h-3 rounded-full ${isStreaming ? 'animate-pulse bg-[#27C93F]' : 'bg-[#27C93F]'} shadow-inner`} />
           </div>
-          <span className="text-[10px] font-bold font-mono text-text-muted/60 uppercase tracking-widest ml-1">{language}</span>
+          <span className="text-[10px] font-bold font-mono text-text-muted/60 uppercase tracking-widest ml-1">
+            {isStreaming ? (
+              <span className="flex items-center gap-2">
+                WRITING {language}...
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              </span>
+            ) : language}
+          </span>
         </div>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 transition-all active:scale-95"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-green-success" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? 'COPIED' : 'COPY CODE'}
-        </button>
+        <div className="flex items-center gap-2">
+          {isBridgeConnected && (
+            <button
+              onClick={handleSync}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all active:scale-95 border ${synced
+                ? 'bg-green-success/10 border-green-success/30 text-green-success'
+                : 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai hover:bg-purple-ai/20'
+                }`}
+            >
+              {synced ? <Check className="w-3.5 h-3.5" /> : <ArduinoLogo className="w-3.5 h-3.5" />}
+              {synced ? 'SYNCED TO IDE' : 'SYNC TO ARDUINO IDE'}
+            </button>
+          )}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 transition-all active:scale-95"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-success" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'COPIED' : 'COPY'}
+          </button>
+        </div>
       </div>
-      <pre className="p-5 overflow-x-auto text-[13.5px] font-mono leading-relaxed text-blue-100/80 custom-scrollbar">
-        <code>{code}</code>
+      <pre className={`p-5 overflow-x-auto text-[13.5px] font-mono leading-relaxed custom-scrollbar ${isStreaming ? 'text-blue-100/40 italic' : 'text-blue-100/80'}`}>
+        <code>{code}{isStreaming && '_'}</code>
       </pre>
     </div>
   );
@@ -145,6 +220,70 @@ export default function Home() {
   // Board state
   const [isBoardManagerOpen, setIsBoardManagerOpen] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState<BoardDefinition | null>(null);
+
+  // Bridge state from global store
+  const { isBridgeConnected, localProjectPath, checkBridgeConnection, setLocalProjectPath, syncToLocalFile } = useIDEStore();
+  const [isBridgeModalOpen, setIsBridgeModalOpen] = useState(false);
+  const [localPathInput, setLocalPathInput] = useState(localProjectPath);
+  const [isBrowsing, setIsBrowsing] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  useEffect(() => {
+    // Initial check
+    checkBridgeConnection();
+
+    // Set up polling interval (every 3 seconds)
+    const interval = setInterval(() => {
+      checkBridgeConnection();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [checkBridgeConnection]);
+
+  useEffect(() => {
+    setLocalPathInput(localProjectPath);
+  }, [localProjectPath]);
+
+  const handleBrowseFiles = async () => {
+    setIsBrowsing(true);
+    try {
+      const response = await fetch('http://localhost:3002/select-file');
+
+      if (!response.ok) {
+        let errorMsg = 'Bridge error: ' + response.statusText;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.message || errorData.error || errorMsg;
+          } catch (e) {
+            // ignore
+          }
+        }
+        throw new Error(errorMsg);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new TypeError("Oops, we haven't received JSON from the bridge! Check if the bridge is running.");
+      }
+
+      const data = await response.json();
+      if (data.success && data.filePath) {
+        setLocalPathInput(data.filePath);
+      }
+    } catch (e) {
+      console.error('Failed to browse files:', e);
+      alert(e instanceof Error ? e.message : "Neural Link Bridge is offline.");
+    } finally {
+      setIsBrowsing(false);
+    }
+  };
 
   // Load the first installed board as default
   useEffect(() => {
@@ -211,7 +350,15 @@ export default function Home() {
   // Persistence: Save to Supabase (Cloud Sync)
   useEffect(() => {
     const syncToCloud = async () => {
-      if (conversations.length === 0) return;
+      // If we have no conversations, we need to clear the cloud too!
+      if (conversations.length === 0) {
+        const { error } = await supabase
+          .from('ai_conversations')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete everything
+        if (error) console.error('Supabase Clear Error:', error);
+        return;
+      }
 
       // Map to Supabase schema
       const { error } = await supabase
@@ -395,8 +542,11 @@ export default function Home() {
 
     // 1. If we're starting fresh, create the conversation WITH the user message
     if (!convoId) {
+      console.log('[Circuito AI] Starting new session with user msg');
       convoId = createConversation([userMessage]);
       setInput('');
+      // Give React a frame to transition the UI to the chat view
+      await new Promise(r => setTimeout(r, 0));
     } else {
       // 2. Otherwise, add the User Message to the existing conversation
       if (!retryContent) {
@@ -420,12 +570,36 @@ export default function Home() {
       }
     }
 
+    // ─── AI FETCH & STREAM ───
     const assistantMsgId = crypto.randomUUID();
-
     setIsTyping(true);
 
     try {
       console.log('[Circuito AI] Sending request for convo:', convoId);
+
+      // ─── PROJECT AWARENESS FETCH ───
+      // If bridge is connected, fetch latest local code to inject into AI context
+      let currentLocalCode = '';
+      if (isBridgeConnected && localProjectPath) {
+        try {
+          console.log('[Circuito AI] Fetching latest context from Bridge...');
+          // Promise with timeout for the bridge fetch
+          const bridgeUpdatePromise = useIDEStore.getState().updateLocalFileContent();
+
+          // Wait max 5s for bridge (to handle larger projects gracefully)
+          currentLocalCode = await Promise.race([
+            bridgeUpdatePromise,
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Bridge timeout')), 5000))
+          ]) || '';
+
+          if (currentLocalCode) {
+            console.log(`[Circuito AI] Synced ${currentLocalCode.length} characters of code for analysis.`);
+          }
+        } catch (bridgeErr) {
+          console.warn('[Circuito AI] Project sync failed or timed out:', bridgeErr);
+          // Fallback to empty code - don't let bridge failure stop the AI
+        }
+      }
 
       const response = await fetch('/api/ai', {
         method: 'POST',
@@ -440,24 +614,27 @@ export default function Home() {
           ],
           context: {
             board: selectedBoard?.name || 'ESP32',
-            deviceType: selectedBoard?.architecture || 'esp32'
+            deviceType: selectedBoard?.architecture || 'esp32',
+            code: currentLocalCode // 👈 This gives the AI "eyes" on your local file
           },
         }),
       });
 
-      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+      console.log('[Circuito AI] AI Response status:', response.status);
+
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status} `);
 
       // 2. Add Assistant Message placeholder
       setConversations(prev => {
-        // We find the convo in the MOST RECENT state (which includes new ones from functional updates)
-        const updatedConversations = prev.map(c => {
+        return prev.map(c => {
           if (c.id === convoId) {
-            const hasUserMsg = c.messages.some(m => m.id === userMessage.id);
-            const finalMessages = hasUserMsg ? [...c.messages] : [...c.messages, userMessage];
+            // Check if assistant message already exists
+            const exists = c.messages.some(m => m.id === assistantMsgId);
+            if (exists) return c;
 
             return {
               ...c,
-              messages: [...finalMessages, {
+              messages: [...c.messages, {
                 id: assistantMsgId,
                 role: 'assistant' as const,
                 content: '',
@@ -467,15 +644,14 @@ export default function Home() {
           }
           return c;
         });
-        return updatedConversations;
       });
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
+      let buffer = '';
       let streamedContent = '';
 
       if (reader) {
-        let buffer = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -489,7 +665,9 @@ export default function Home() {
             if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
             try {
-              const data = JSON.parse(trimmed.slice(6));
+              const dataStr = trimmed.slice(6);
+              if (dataStr === '[DONE]') continue;
+              const data = JSON.parse(dataStr);
 
               if (data.type === 'token') {
                 if (data.content && data.content.trim() !== '') {
@@ -497,6 +675,18 @@ export default function Home() {
                 }
 
                 streamedContent += data.content;
+
+                // ─── LIVE BRIDGE SYNC ───
+                // If bridge is connected and path is set, push updates as they arrive
+                if (isBridgeConnected && localProjectPath) {
+                  const currentCode = extractLatestCodeBlock(streamedContent);
+                  if (currentCode) {
+                    // We don't want to spam the bridge on every char, maybe every newline or 50 chars
+                    if (data.content.includes('\n') || streamedContent.length % 40 === 0) {
+                      syncToLocalFile(currentCode, true);
+                    }
+                  }
+                }
 
                 // Optimized update: only update component state when content changes
                 setConversations(prev => prev.map(c => {
@@ -520,6 +710,15 @@ export default function Home() {
         }
       }
       setIsTyping(false);
+
+      // ─── FINAL BRIDGE SYNC ───
+      // One last push to make sure the complete code is saved correctly
+      if (isBridgeConnected && localProjectPath) {
+        const finalCode = extractLatestCodeBlock(streamedContent);
+        if (finalCode) {
+          syncToLocalFile(finalCode, true);
+        }
+      }
     } catch (err) {
       console.error('[Circuito AI] Critical AI Error:', err);
       setConversations(prev => prev.map(c => {
@@ -589,7 +788,7 @@ export default function Home() {
         });
         alert('✅ Firmware flashed successfully! Board is resetting...');
       } catch (err: any) {
-        alert(`❌ Flash failed: ${err.message}`);
+        alert(`❌ Flash failed: ${err.message} `);
       } finally {
         setIsFlashing(false);
         setFlashProgress(0);
@@ -727,7 +926,7 @@ export default function Home() {
                       <motion.div
                         className="h-full bg-gradient-to-r from-cyan-primary via-blue-400 to-cyan-primary rounded-full shadow-[0_0_10px_rgba(0,217,255,0.5)]"
                         initial={{ width: 0 }}
-                        animate={{ width: `${flashProgress}%` }}
+                        animate={{ width: `${flashProgress}% ` }}
                       />
                     </div>
                   </div>
@@ -796,7 +995,22 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={() => setIsBridgeModalOpen(true)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all ${isBridgeConnected
+                ? 'bg-green-success/10 border-green-success/30 text-green-success shadow-[0_0_15px_-3px_rgba(34,197,94,0.3)]'
+                : 'bg-white/5 border-white/10 text-text-muted hover:text-white'
+                }`}
+            >
+              <div className={`${isBridgeConnected ? 'animate-pulse' : 'opacity-50 grayscale'}`}>
+                <ArduinoLogo className="w-4 h-4" />
+              </div>
+              <div className="hidden sm:block text-[10px] font-black uppercase tracking-tighter">
+                {isBridgeConnected ? 'Neural Link Connected' : 'Neural Link Ready'}
+              </div>
+            </button>
+
             <button
               onClick={() => setIsBoardManagerOpen(true)}
               className="flex items-center gap-2 px-2.5 sm:px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] sm:text-[11px] font-black text-text-muted hover:text-cyan-primary hover:border-cyan-primary/30 transition-all uppercase tracking-widest"
@@ -835,9 +1049,49 @@ export default function Home() {
                   Hardware intelligence, <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-primary via-blue-400 to-purple-ai">Simplified.</span>
                 </h2>
-                <p className="text-[15px] text-text-muted mb-12 max-w-sm mx-auto leading-relaxed font-medium">
+                <p className="text-[15px] text-text-muted mb-10 max-w-sm mx-auto leading-relaxed font-medium">
                   Describe your Arduino/ESP32 vision. I'll architect the code, assign the pins, and verify the logic.
                 </p>
+
+                {/* Local Bridge CTA */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="mb-8 p-4 rounded-2xl bg-[#0F1629]/60 border border-white/5 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 max-w-lg mx-auto overflow-hidden relative group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-primary/5 via-purple-ai/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-center gap-4 relative z-10">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isBridgeConnected ? 'bg-green-success/10' : 'bg-surface-3'}`}>
+                      <ArduinoLogo className={`w-7 h-7 ${isBridgeConnected ? '' : 'opacity-40 grayscale'}`} />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-[13px] font-bold text-white tracking-tight">
+                        {isBridgeConnected ? 'Connected to Local Arduino IDE' : 'Want Circuito AI to code on your Local Arduino IDE?'}
+                      </h4>
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${isBridgeConnected ? 'bg-cyan-primary' : 'bg-red-500/50'} animate-pulse`} />
+                          <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">
+                            {isBridgeConnected ? (localProjectPath ? `Neural Link: ${localProjectPath.split(/[\\/]/).pop()}` : 'Neural Link Ready') : 'Bridge Offline'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-text-muted/40 font-medium">
+                          Powered by Circuito Core & Javier Siliacay
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsBridgeModalOpen(true)}
+                    className={`relative z-10 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg ${isBridgeConnected
+                      ? 'bg-purple-ai text-white hover:bg-purple-hover'
+                      : 'bg-cyan-primary hover:bg-cyan-hover text-[#0A0F1C]'
+                      }`}
+                  >
+                    {isBridgeConnected ? (localProjectPath ? 'SYNC ACTIVE' : 'COMPLETE SETUP') : 'START SYNC'}
+                  </button>
+                </motion.div>
 
                 <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
                   {suggestions.map((s, i) => (
@@ -904,7 +1158,7 @@ export default function Home() {
                         ) : (
                           parseMessageContent(msg.content).map((part, i) =>
                             part.type === 'code' ? (
-                              <CodeBlock key={i} code={part.content} language={part.language || 'cpp'} />
+                              <CodeBlock key={i} code={part.content} language={part.language || 'cpp'} isStreaming={part.isStreaming} />
                             ) : (
                               <RenderText key={i} text={part.content} />
                             )
@@ -916,13 +1170,15 @@ export default function Home() {
                       <div className="absolute bottom-0 right-0 translate-y-1/2 translate-x-1/2 w-4 h-4 rounded-full bg-cyan-primary/20 blur-sm" />
                     )}
                   </div>
-                  {msg.role === 'user' && (
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-primary/10 to-blue-500/10 border border-white/10 flex items-center justify-center shrink-0 mt-1 shadow-inner">
-                      <div className="w-6 h-6 rounded-full bg-cyan-primary flex items-center justify-center text-[10px] font-black text-[#0A0F1C]">
-                        ME
+                  {
+                    msg.role === 'user' && (
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-primary/10 to-blue-500/10 border border-white/10 flex items-center justify-center shrink-0 mt-1 shadow-inner">
+                        <div className="w-6 h-6 rounded-full bg-cyan-primary flex items-center justify-center text-[10px] font-black text-[#0A0F1C]">
+                          ME
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  }
                 </motion.div>
               ))}
 
@@ -980,6 +1236,165 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </div>
+
+      {/* ─── Neural Link Bridge Modal (Official Arduino IDE) ─── */}
+      <AnimatePresence>
+        {isBridgeModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-left shadow-2xl">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBridgeModalOpen(false)}
+              className="absolute inset-0 bg-[#0A0F1C]/80 backdrop-blur-xl"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-[#161F36] border border-white/10 rounded-3xl overflow-hidden p-8"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#00979D]/10 flex items-center justify-center border border-[#00979D]/20">
+                    <ArduinoLogo className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white tracking-tight">Neural Link</h3>
+                    <p className="text-[11px] text-text-muted font-bold tracking-widest uppercase">Official Arduino IDE Support</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsBridgeModalOpen(false)} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-text-muted transition-colors">
+                  <Plus className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Bridge Sync Port</label>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-mono text-cyan-primary">http://localhost:3002</p>
+                      <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isBridgeConnected ? 'bg-green-success/20 text-green-success' : 'bg-red-500/20 text-red-500'}`}>
+                        {isBridgeConnected ? 'Online' : 'Offline'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t border-white/5">
+                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Target Arduino Sketch Path</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={localPathInput}
+                        onChange={(e) => setLocalPathInput(e.target.value)}
+                        placeholder="C:\...\Documents\Arduino\Blink\Blink.ino"
+                        className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white placeholder:text-white/20 outline-none focus:border-purple-ai/50 transition-all font-mono"
+                      />
+                      <button
+                        onClick={handleBrowseFiles}
+                        disabled={isBrowsing || !isBridgeConnected}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Browse local files"
+                      >
+                        {isBrowsing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          let path = localPathInput.trim();
+                          if (path && !path.toLowerCase().endsWith('.ino') && !path.toLowerCase().endsWith('.cpp') && !path.toLowerCase().endsWith('.h')) {
+                            // If it's a directory, assume the file name is the same as the folder name
+                            const parts = path.split(/[\\/]/);
+                            const lastPart = parts[parts.length - 1];
+                            if (lastPart) {
+                              path = `${path}${path.endsWith('\\') || path.endsWith('/') ? '' : '\\'}${lastPart}.ino`;
+                            }
+                          }
+                          setLocalProjectPath(path);
+                          setLocalPathInput(path); // Update input to show corrected path
+                          setIsBridgeModalOpen(false);
+                          showToast('Neural Link Established! Syncing is now active.');
+                        }}
+                        className="px-4 h-10 rounded-xl bg-purple-ai text-white text-[11px] font-bold uppercase tracking-widest hover:bg-purple-hover transition-colors shadow-lg"
+                      >
+                        Set
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
+                      * Point this to the .ino file you have open in your official Arduino IDE.
+                    </p>
+                  </div>
+
+                  {/* ─── SETUP COMPLETED NOTE ─── */}
+                  {isBridgeConnected && localProjectPath && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20 flex gap-3 items-start"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-4 h-4 text-green-success" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">Neural Link Established</h4>
+                        <p className="text-[11px] text-text-secondary leading-relaxed">
+                          Your project is fully connected! The **Circuito AI Agent** will now automatically stream and sync code directly to your local file in real-time.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="p-5 rounded-2xl bg-cyan-primary/5 border border-cyan-primary/10 text-left">
+                  <h4 className="flex items-center gap-2 text-[11px] font-black text-cyan-primary uppercase tracking-widest mb-3">
+                    <Monitor className="w-3.5 h-3.5" />
+                    How to sync
+                  </h4>
+                  <ul className="space-y-2.5">
+                    <li className="flex gap-3 items-start">
+                      <div className="w-4 h-4 rounded-full bg-cyan-primary/20 flex items-center justify-center text-[9px] font-black text-cyan-primary shrink-0 mt-0.5">1</div>
+                      <p className="text-[11px] text-text-secondary leading-snug">Open your code in the <strong>Official Arduino IDE</strong> software.</p>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <div className="w-4 h-4 rounded-full bg-cyan-primary/20 flex items-center justify-center text-[9px] font-black text-cyan-primary shrink-0 mt-0.5">2</div>
+                      <p className="text-[11px] text-text-secondary leading-snug">Paste the file path above. Circuito AI will now have <strong>Neural Access</strong> to that file.</p>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <div className="w-4 h-4 rounded-full bg-cyan-primary/20 flex items-center justify-center text-[9px] font-black text-cyan-primary shrink-0 mt-0.5">3</div>
+                      <p className="text-[11px] text-text-secondary leading-snug">Click <strong>Sync to Arduino IDE</strong> in any code block. Watch the magic happen!</p>
+                    </li>
+                  </ul>
+                </div>
+
+                <button
+                  onClick={() => setIsBridgeModalOpen(false)}
+                  className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[11px] font-black uppercase tracking-widest transition-all"
+                >
+                  Close Settings
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* ─── Global Toast ─── */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="fixed top-6 left-1/2 z-[200] px-6 py-3 rounded-2xl bg-[#161F36]/90 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center gap-3"
+          >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${toast.type === 'success' ? 'bg-green-success/20 text-green-success' :
+              toast.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-cyan-primary/20 text-cyan-primary'
+              }`}>
+              {toast.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            </div>
+            <p className="text-sm font-bold text-white tracking-tight">{toast.message}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div >
   );
 }

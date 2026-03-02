@@ -57,6 +57,13 @@ interface IDEState {
     isUploading: boolean;
     outputContent: string[];
 
+    // Desktop Bridge
+    isBridgeConnected: boolean;
+    bridgeStatus: 'online' | 'offline' | 'error';
+    localProjectPath: string;
+    isBridgeSyncEnabled: boolean;
+    localFileContent: string;
+
     // Actions
     setIsCompiling: (compiling: boolean) => void;
     setIsUploading: (uploading: boolean) => void;
@@ -79,6 +86,14 @@ interface IDEState {
     setIsAIApplying: (applying: boolean) => void;
     setAIApplyProgress: (progress: number) => void;
     applyCodeToEditor: (code: string) => Promise<void>;
+
+    // Desktop Bridge Actions
+    setBridgeStatus: (status: 'online' | 'offline' | 'error') => void;
+    setLocalProjectPath: (path: string) => void;
+    toggleBridgeSync: () => void;
+    checkBridgeConnection: () => Promise<boolean>;
+    syncToLocalFile: (code: string, force?: boolean) => Promise<void>;
+    updateLocalFileContent: () => Promise<string | null>;
 }
 
 // Default project template — this is displayed when no project is loaded
@@ -177,7 +192,7 @@ const defaultAIMessages: AIMessage[] = [
     },
 ];
 
-export const useIDEStore = create<IDEState>((set) => ({
+export const useIDEStore = create<IDEState>((set, get) => ({
     files: defaultFiles,
     activeFileId: 'main-cpp',
     openTabs: ['main-cpp', 'platformio-ini'],
@@ -201,6 +216,13 @@ export const useIDEStore = create<IDEState>((set) => ({
     isCompiling: false,
     isUploading: false,
     outputContent: [],
+
+    // Bridge initial state
+    isBridgeConnected: false,
+    bridgeStatus: 'offline',
+    localProjectPath: '',
+    isBridgeSyncEnabled: false,
+    localFileContent: '',
 
     setIsCompiling: (compiling) => set({ isCompiling: compiling }),
     setIsUploading: (uploading) => set({ isUploading: uploading }),
@@ -270,6 +292,89 @@ export const useIDEStore = create<IDEState>((set) => ({
     setIsAIApplying: (applying) => set({ isAIApplying: applying }),
     setAIApplyProgress: (progress) => set({ aiApplyProgress: progress }),
 
+    setBridgeStatus: (status) => set({ bridgeStatus: status, isBridgeConnected: status === 'online' }),
+    setLocalProjectPath: (path) => set({ localProjectPath: path }),
+    toggleBridgeSync: () => set((state) => ({ isBridgeSyncEnabled: !state.isBridgeSyncEnabled })),
+
+    checkBridgeConnection: async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+
+        try {
+            const response = await fetch('http://localhost:3002/status', {
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (!response.ok) throw new Error('Not OK');
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
+
+            const data = await response.json();
+            if (data.status === 'online') {
+                set({ bridgeStatus: 'online', isBridgeConnected: true });
+                return true;
+            } else {
+                set({ bridgeStatus: 'offline', isBridgeConnected: false });
+                return false;
+            }
+        } catch (e) {
+            clearTimeout(timeout);
+            set({ bridgeStatus: 'offline', isBridgeConnected: false });
+            return false;
+        }
+    },
+
+    syncToLocalFile: async (code: string, force = false) => {
+        const state = get();
+        if (!state.isBridgeConnected || !state.localProjectPath) return;
+        if (!state.isBridgeSyncEnabled && !force) return;
+
+        try {
+            await fetch('http://localhost:3002/write-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filePath: state.localProjectPath,
+                    content: code
+                })
+            });
+        } catch (e) {
+            console.error('[Store] Sync to bridge failed:', e);
+        }
+    },
+
+    updateLocalFileContent: async () => {
+        const state = get();
+        if (!state.isBridgeConnected || !state.localProjectPath) return null;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+
+        try {
+            const response = await fetch(`http://localhost:3002/read-file?path=${encodeURIComponent(state.localProjectPath)}`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (!response.ok) return null;
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) return null;
+
+            const data = await response.json();
+            if (data.success) {
+                set({ localFileContent: data.content });
+                return data.content as string;
+            }
+        } catch (e) {
+            clearTimeout(timeout);
+            console.error('[Store] Read from bridge failed:', e);
+        }
+        return null;
+    },
+
     applyCodeToEditor: async (code: string) => {
         set({ isAIApplying: true, aiApplyProgress: 0 });
 
@@ -294,6 +399,11 @@ export const useIDEStore = create<IDEState>((set) => ({
                     aiApplyProgress: Math.round((written / totalChars) * 100),
                 });
 
+                // Periodic sync to bridge if enabled
+                if (written % 50 === 0) {
+                    useIDEStore.getState().syncToLocalFile(currentContent);
+                }
+
                 // Variable typing speed: faster for whitespace, slower for code
                 const delay = line.trim().length === 0 ? 5 : 8 + Math.random() * 12;
                 await new Promise((r) => setTimeout(r, delay));
@@ -311,12 +421,14 @@ export const useIDEStore = create<IDEState>((set) => ({
             }
         }
 
-        // Final state
+        // Final state & final sync
         set({
             editorContent: code,
             isAIApplying: false,
             aiApplyProgress: 100,
         });
+
+        useIDEStore.getState().syncToLocalFile(code);
     },
 }));
 
