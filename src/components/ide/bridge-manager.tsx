@@ -1,37 +1,61 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useIDEStore } from '@/store/ide-store';
 import { Monitor, RefreshCcw, CheckCircle2, XCircle, FolderOpen, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export default function BridgeManager() {
     const {
         isBridgeConnected,
-        bridgeStatus,
         localProjectPath,
         isBridgeSyncEnabled,
-        setLocalProjectPath,
         toggleBridgeSync,
-        checkBridgeConnection
+        setFileHandle,
+        setLocalProjectPath,
+        setBridgeStatus,
+        updateLocalFileContent
     } = useIDEStore();
 
     const [isChecking, setIsChecking] = useState(false);
-    const [pathInput, setPathInput] = useState(localProjectPath);
 
-    useEffect(() => {
-        setPathInput(localProjectPath);
-    }, [localProjectPath]);
-
-    const handleCheck = async () => {
+    const handleBrowseFiles = async () => {
         setIsChecking(true);
-        await checkBridgeConnection();
-        setIsChecking(false);
-    };
+        try {
+            if (!('showOpenFilePicker' in window)) {
+                throw new Error('Your browser does not support the Web File System Access API. Please use Chrome, Edge, or Opera.');
+            }
 
-    const handleSavePath = () => {
-        setLocalProjectPath(pathInput);
+            const [handle] = await (window as any).showOpenFilePicker({
+                types: [
+                    {
+                        description: 'Arduino & Code Files',
+                        accept: {
+                            'text/plain': ['.ino', '.cpp', '.h', '.hpp', '.c', '.txt']
+                        }
+                    }
+                ]
+            });
+
+            // Request permission upfront during user gesture
+            if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
+                await handle.requestPermission({ mode: 'readwrite' });
+            }
+
+            setFileHandle(handle);
+            setLocalProjectPath(handle.name);
+            setBridgeStatus('online');
+
+            await updateLocalFileContent();
+        } catch (e: any) {
+            if (e.name !== 'AbortError') {
+                console.error('Failed to select file:', e);
+                alert(e.message || "Failed to open file.");
+            }
+        } finally {
+            setIsChecking(false);
+        }
     };
 
     return (
@@ -47,45 +71,32 @@ export default function BridgeManager() {
                             <Monitor className={`w-5 h-5 ${isBridgeConnected ? 'text-green-success' : 'text-text-muted'}`} />
                         </div>
                         <div>
-                            <h3 className="text-sm font-semibold text-text-primary">Desktop Bridge</h3>
+                            <h3 className="text-sm font-semibold text-text-primary">Local File Link</h3>
                             <p className="text-[10px] text-text-muted">
-                                {isBridgeConnected ? 'Status: Connected' : 'Status: Offline'}
+                                {isBridgeConnected ? 'Status: File Linked' : 'Status: No File Selected'}
                             </p>
                         </div>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCheck}
-                        disabled={isChecking}
-                        className="h-8 w-8 hover:bg-surface-3"
-                    >
-                        <RefreshCcw className={`w-4 h-4 ${isChecking ? 'animate-spin text-cyan-primary' : 'text-text-muted'}`} />
-                    </Button>
                 </div>
 
                 {isBridgeConnected ? (
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 text-[11px] text-green-success font-medium">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Bridge is authorized and ready to sync.
+                            File linked and ready to sync.
                         </div>
 
-                        {/* Path Input */}
+                        {/* Selected File */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
-                                Local Project path (.ino / .cpp)
+                                Linked File
                             </label>
                             <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={pathInput}
-                                    onChange={(e) => setPathInput(e.target.value)}
-                                    placeholder="C:\Users\...\Blink.ino"
-                                    className="flex-1 bg-surface-base border border-border-dim rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none focus:border-cyan-primary/50"
-                                />
-                                <Button size="sm" onClick={handleSavePath} className="bg-cyan-primary hover:bg-cyan-hover text-surface-base text-[10px] h-auto py-1.5">
-                                    Set
+                                <div className="flex-1 bg-surface-base border border-border-dim rounded-lg px-3 py-1.5 text-xs text-text-primary outline-none">
+                                    {localProjectPath || 'Unknown File'}
+                                </div>
+                                <Button size="sm" onClick={handleBrowseFiles} className="bg-surface-3 hover:bg-surface-4 text-text-primary text-[10px] h-auto py-1.5 border border-border-dim">
+                                    Change
                                 </Button>
                             </div>
                         </div>
@@ -98,13 +109,13 @@ export default function BridgeManager() {
                                 className="w-full bg-purple-ai/10 hover:bg-purple-ai/20 text-purple-ai border border-purple-ai/20 text-[11px] font-bold h-9 gap-2 shadow-sm"
                             >
                                 <Zap className="w-3.5 h-3.5" />
-                                PUSH TO LOCAL IDE
+                                PUSH TO LOCAL FILE
                             </Button>
 
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-[11px] font-semibold text-text-primary">Real-time Auto-Sync</p>
-                                    <p className="text-[9px] text-text-muted">AI writes directly to your IDE</p>
+                                    <p className="text-[9px] text-text-muted">AI writes directly to your local file</p>
                                 </div>
                                 <button
                                     onClick={toggleBridgeSync}
@@ -123,13 +134,19 @@ export default function BridgeManager() {
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 text-[11px] text-text-muted">
                             <XCircle className="w-3.5 h-3.5" />
-                            Bridge app not detected locally.
+                            Secure browser API used, no external server required.
                         </div>
                         <Button
-                            className="w-full bg-surface-3 hover:bg-surface-4 text-text-primary text-[11px] gap-2 border border-border-dim"
+                            onClick={handleBrowseFiles}
+                            disabled={isChecking}
+                            className="w-full bg-cyan-primary hover:bg-cyan-hover text-surface-base text-[11px] font-bold gap-2 shadow-sm h-9"
                         >
-                            <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                            Download Bridge Tool
+                            {isChecking ? (
+                                <RefreshCcw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                                <FolderOpen className="w-3.5 h-3.5" />
+                            )}
+                            Select Local Arduino File
                         </Button>
                     </div>
                 )}
@@ -140,9 +157,9 @@ export default function BridgeManager() {
                 <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest">How it works</h4>
                 <div className="space-y-2">
                     {[
-                        { icon: Zap, text: 'Run the desktop-bridge server locally' },
-                        { icon: FolderOpen, text: 'Paste your local Arduino sketch path above' },
-                        { icon: RefreshCcw, text: 'Changes here sync instantly to your local IDE' }
+                        { icon: FolderOpen, text: 'Select an existing Arduino file (.ino, .cpp) on your PC' },
+                        { icon: CheckCircle2, text: 'Grant your browser permission to edit the file' },
+                        { icon: RefreshCcw, text: 'AI generated code syncs instantly to your local IDE' }
                     ].map((step, i) => (
                         <div key={i} className="flex gap-2.5 items-start">
                             <div className="p-1 rounded bg-surface-3 mt-0.5">

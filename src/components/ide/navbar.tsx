@@ -72,7 +72,7 @@ export default function IDENavbar() {
 
     const handleConnectDevice = async () => {
         if (!isSupported) {
-            alert("This browser environment doesn't support hardware access. Please open http://localhost:3000 in Google Chrome or Edge to connect your ESP32.");
+            alert("This browser environment doesn't support hardware access. Please open this app in Google Chrome or Edge to connect your ESP32.");
             return;
         }
         try {

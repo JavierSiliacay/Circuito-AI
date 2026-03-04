@@ -57,12 +57,13 @@ interface IDEState {
     isUploading: boolean;
     outputContent: string[];
 
-    // Desktop Bridge
+    // Desktop Bridge (Web File System Access API)
     isBridgeConnected: boolean;
     bridgeStatus: 'online' | 'offline' | 'error';
     localProjectPath: string;
     isBridgeSyncEnabled: boolean;
     localFileContent: string;
+    fileHandle: any | null;
 
     // Actions
     setIsCompiling: (compiling: boolean) => void;
@@ -90,6 +91,7 @@ interface IDEState {
     // Desktop Bridge Actions
     setBridgeStatus: (status: 'online' | 'offline' | 'error') => void;
     setLocalProjectPath: (path: string) => void;
+    setFileHandle: (handle: any) => void;
     toggleBridgeSync: () => void;
     checkBridgeConnection: () => Promise<boolean>;
     syncToLocalFile: (code: string, force?: boolean) => Promise<void>;
@@ -223,6 +225,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     localProjectPath: '',
     isBridgeSyncEnabled: false,
     localFileContent: '',
+    fileHandle: null,
 
     setIsCompiling: (compiling) => set({ isCompiling: compiling }),
     setIsUploading: (uploading) => set({ isUploading: uploading }),
@@ -294,33 +297,16 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
     setBridgeStatus: (status) => set({ bridgeStatus: status, isBridgeConnected: status === 'online' }),
     setLocalProjectPath: (path) => set({ localProjectPath: path }),
+    setFileHandle: (handle) => set({ fileHandle: handle }),
     toggleBridgeSync: () => set((state) => ({ isBridgeSyncEnabled: !state.isBridgeSyncEnabled })),
 
     checkBridgeConnection: async () => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
-
-        try {
-            const response = await fetch('http://localhost:3002/status', {
-                signal: controller.signal
-            });
-            clearTimeout(timeout);
-
-            if (!response.ok) throw new Error('Not OK');
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
-
-            const data = await response.json();
-            if (data.status === 'online') {
-                set({ bridgeStatus: 'online', isBridgeConnected: true });
-                return true;
-            } else {
-                set({ bridgeStatus: 'offline', isBridgeConnected: false });
-                return false;
-            }
-        } catch (e) {
-            clearTimeout(timeout);
+        const state = get();
+        // With Web API, connected means we have a handle
+        if (state.fileHandle) {
+            set({ bridgeStatus: 'online', isBridgeConnected: true });
+            return true;
+        } else {
             set({ bridgeStatus: 'offline', isBridgeConnected: false });
             return false;
         }
@@ -328,49 +314,65 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
     syncToLocalFile: async (code: string, force = false) => {
         const state = get();
-        if (!state.isBridgeConnected || !state.localProjectPath) return;
+        if (!state.isBridgeConnected || !state.fileHandle) return;
         if (!state.isBridgeSyncEnabled && !force) return;
 
         try {
-            await fetch('http://localhost:3002/write-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    filePath: state.localProjectPath,
-                    content: code
-                })
-            });
-        } catch (e) {
-            console.error('[Store] Sync to bridge failed:', e);
+            // Check permission to write, but do NOT request it (requires user activation)
+            const options = { mode: 'readwrite' };
+            if ((await state.fileHandle.queryPermission(options)) !== 'granted') {
+                console.warn('[Store] Write permission not granted. Cannot sync.');
+                return;
+            }
+            const writable = await state.fileHandle.createWritable();
+            await writable.write(code);
+            await writable.close();
+        } catch (e: any) {
+            console.error('[Store] Sync to local file failed:', e);
+            if (e.name === 'InvalidStateError' || e.name === 'NotFoundError') {
+                set({
+                    bridgeStatus: 'offline',
+                    isBridgeConnected: false,
+                    fileHandle: null,
+                    localProjectPath: ''
+                });
+                alert('Your linked file changed externally and browser security requires you to re-link your project file. Please click Select File in the UI.');
+            }
         }
     },
 
     updateLocalFileContent: async () => {
         const state = get();
-        if (!state.isBridgeConnected || !state.localProjectPath) return null;
-
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
+        if (!state.isBridgeConnected || !state.fileHandle) return null;
 
         try {
-            const response = await fetch(`http://localhost:3002/read-file?path=${encodeURIComponent(state.localProjectPath)}`, {
-                signal: controller.signal
-            });
-            clearTimeout(timeout);
-
-            if (!response.ok) return null;
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) return null;
-
-            const data = await response.json();
-            if (data.success) {
-                set({ localFileContent: data.content });
-                return data.content as string;
+            // Check permission to read
+            const options = { mode: 'read' };
+            if ((await state.fileHandle.queryPermission(options)) !== 'granted') {
+                console.warn('[Store] Read permission not granted, cannot read file.');
+                return null;
             }
-        } catch (e) {
-            clearTimeout(timeout);
-            console.error('[Store] Read from bridge failed:', e);
+
+            // This is the line that throws InvalidStateError if the user modified the file externally
+            const file = await state.fileHandle.getFile();
+            const content = await file.text();
+            set({ localFileContent: content });
+            return content as string;
+        } catch (e: any) {
+            console.error('[Store] Read from local file failed:', e);
+
+            // If the state is invalid, the OS/Browser invalidated our handle because the file 
+            // changed externally in a way that breaks the reference (common on Windows).
+            // We must disconnect and require the user to re-select the file.
+            if (e.name === 'InvalidStateError' || e.name === 'NotFoundError') {
+                set({
+                    bridgeStatus: 'offline',
+                    isBridgeConnected: false,
+                    fileHandle: null,
+                    localProjectPath: ''
+                });
+                alert('Your linked file changed externally and browser security requires you to re-select it. Please click Select File again in the UI.');
+            }
         }
         return null;
     },

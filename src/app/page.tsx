@@ -252,34 +252,35 @@ export default function Home() {
   const handleBrowseFiles = async () => {
     setIsBrowsing(true);
     try {
-      const response = await fetch('http://localhost:3002/select-file');
+      if (!('showOpenFilePicker' in window)) {
+        throw new Error('Your browser does not support the Web File System Access API. Please use Chrome, Edge, or Opera.');
+      }
 
-      if (!response.ok) {
-        let errorMsg = 'Bridge error: ' + response.statusText;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const errorData = await response.json();
-            errorMsg = errorData.message || errorData.error || errorMsg;
-          } catch (e) {
-            // ignore
+      const [handle] = await (window as any).showOpenFilePicker({
+        types: [
+          {
+            description: 'Arduino & C++ Files',
+            accept: {
+              'text/plain': ['.ino', '.cpp', '.h', '.hpp', '.c']
+            }
           }
-        }
-        throw new Error(errorMsg);
+        ]
+      });
+
+      // Request write permission IMMEDIATELY during user gesture!
+      if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
+        await handle.requestPermission({ mode: 'readwrite' });
       }
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new TypeError("Oops, we haven't received JSON from the bridge! Check if the bridge is running.");
+      useIDEStore.getState().setFileHandle(handle);
+      useIDEStore.getState().setLocalProjectPath(handle.name);
+      useIDEStore.getState().setBridgeStatus('online');
+      setLocalPathInput(handle.name);
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error('Failed to select file:', e);
+        alert(e.message || "Failed to open file.");
       }
-
-      const data = await response.json();
-      if (data.success && data.filePath) {
-        setLocalPathInput(data.filePath);
-      }
-    } catch (e) {
-      console.error('Failed to browse files:', e);
-      alert(e instanceof Error ? e.message : "Neural Link Bridge is offline.");
     } finally {
       setIsBrowsing(false);
     }
@@ -1272,52 +1273,27 @@ export default function Home() {
               <div className="space-y-6">
                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
                   <div className="space-y-1.5 text-left">
-                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Bridge Sync Port</label>
+                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Status</label>
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-mono text-cyan-primary">http://localhost:3002</p>
-                      <div className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isBridgeConnected ? 'bg-green-success/20 text-green-success' : 'bg-red-500/20 text-red-500'}`}>
-                        {isBridgeConnected ? 'Online' : 'Offline'}
+                      <div className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider ${isBridgeConnected ? 'bg-green-success/20 text-green-success' : 'bg-red-500/20 text-red-500'}`}>
+                        {isBridgeConnected ? 'Securely Linked via Browser' : 'No File Linked'}
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-3 pt-2 border-t border-white/5">
-                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Target Arduino Sketch Path</label>
+                    <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Target Arduino Sketch File</label>
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={localPathInput}
-                        onChange={(e) => setLocalPathInput(e.target.value)}
-                        placeholder="C:\...\Documents\Arduino\Blink\Blink.ino"
-                        className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white placeholder:text-white/20 outline-none focus:border-purple-ai/50 transition-all font-mono"
-                      />
+                      <div className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 flex items-center text-xs text-white placeholder:text-white/20 outline-none transition-all font-mono overflow-hidden whitespace-nowrap text-ellipsis">
+                        {localProjectPath || 'No file selected...'}
+                      </div>
                       <button
                         onClick={handleBrowseFiles}
-                        disabled={isBrowsing || !isBridgeConnected}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Browse local files"
+                        disabled={isBrowsing}
+                        className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-purple-ai/20 border border-purple-ai/30 text-purple-ai hover:bg-purple-ai hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-[11px] uppercase tracking-widest"
                       >
                         {isBrowsing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => {
-                          let path = localPathInput.trim();
-                          if (path && !path.toLowerCase().endsWith('.ino') && !path.toLowerCase().endsWith('.cpp') && !path.toLowerCase().endsWith('.h')) {
-                            // If it's a directory, assume the file name is the same as the folder name
-                            const parts = path.split(/[\\/]/);
-                            const lastPart = parts[parts.length - 1];
-                            if (lastPart) {
-                              path = `${path}${path.endsWith('\\') || path.endsWith('/') ? '' : '\\'}${lastPart}.ino`;
-                            }
-                          }
-                          setLocalProjectPath(path);
-                          setLocalPathInput(path); // Update input to show corrected path
-                          setIsBridgeModalOpen(false);
-                          showToast('Neural Link Established! Syncing is now active.');
-                        }}
-                        className="px-4 h-10 rounded-xl bg-purple-ai text-white text-[11px] font-bold uppercase tracking-widest hover:bg-purple-hover transition-colors shadow-lg"
-                      >
-                        Set
+                        Select File
                       </button>
                     </div>
                     <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
@@ -1338,7 +1314,7 @@ export default function Home() {
                       <div className="space-y-1">
                         <h4 className="text-xs font-black text-white uppercase tracking-wider">Neural Link Established</h4>
                         <p className="text-[11px] text-text-secondary leading-relaxed">
-                          Your project is fully connected! The **Circuito AI Agent** will now automatically stream and sync code directly to your local file in real-time.
+                          Your project is fully connected! The **Circuito AI Agent** will now automatically stream and sync code directly to your local file using secure Browser APIs.
                         </p>
                       </div>
                     </motion.div>
@@ -1357,7 +1333,7 @@ export default function Home() {
                     </li>
                     <li className="flex gap-3 items-start">
                       <div className="w-4 h-4 rounded-full bg-cyan-primary/20 flex items-center justify-center text-[9px] font-black text-cyan-primary shrink-0 mt-0.5">2</div>
-                      <p className="text-[11px] text-text-secondary leading-snug">Paste the file path above. Circuito AI will now have <strong>Neural Access</strong> to that file.</p>
+                      <p className="text-[11px] text-text-secondary leading-snug">Click <strong>Select File</strong> and choose your project's .ino file.</p>
                     </li>
                     <li className="flex gap-3 items-start">
                       <div className="w-4 h-4 rounded-full bg-cyan-primary/20 flex items-center justify-center text-[9px] font-black text-cyan-primary shrink-0 mt-0.5">3</div>
