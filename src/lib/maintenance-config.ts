@@ -6,7 +6,7 @@
 export const MAINTENANCE_CONFIG = {
     // Toggle this via NEXT_PUBLIC_MAINTENANCE_MODE in .env.local
     // Set to 'true' to enable maintenance mode globally.
-    isEnabled: process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true',
+    isEnabled: process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' || true, // Hardcoded to true for maintenance window!
 
     // Authorized credentials for maintenance bypass
     auth: {
