@@ -106,7 +106,7 @@ export default function MaintenanceMode({ children }: { children: React.ReactNod
                                 className="text-lg text-text-muted mb-12 max-w-lg mx-auto leading-relaxed font-medium"
                             >
                                 We're upgrading our hardware intelligence core to provide a more powerful architecting experience.
-                                Estimated time for link restoration: <span className="text-cyan-primary font-bold">2 Hours</span>.
+                                Estimated time for link restoration: <span className="text-cyan-primary font-bold">3-4 days</span>.
                             </motion.p>
 
                             <motion.div
