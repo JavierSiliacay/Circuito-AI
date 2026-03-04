@@ -1,5 +1,23 @@
 import { create } from 'zustand';
 
+// Serialization state for local file sync - prevents concurrent writes that cause InvalidStateError
+let isSyncing = false;
+let pendingSyncCode: string | null = null;
+let syncTimeout: any = null;
+
+// Lock mechanism for reading/writing to prevent handle conflicts
+const FS_LOCK = {
+    locked: false,
+    async acquire() {
+        while (this.locked) await new Promise(r => setTimeout(r, 10));
+        this.locked = true;
+    },
+    release() {
+        this.locked = false;
+    }
+};
+
+
 export interface FileNode {
     id: string;
     name: string;
@@ -56,14 +74,17 @@ interface IDEState {
     isCompiling: boolean;
     isUploading: boolean;
     outputContent: string[];
+    agentTaskStatus: string | null;
+
 
     // Desktop Bridge (Web File System Access API)
     isBridgeConnected: boolean;
     bridgeStatus: 'online' | 'offline' | 'error';
     localProjectPath: string;
+    targetFileName: string;
     isBridgeSyncEnabled: boolean;
     localFileContent: string;
-    fileHandle: any | null;
+    dirHandle: any | null;
 
     // Actions
     setIsCompiling: (compiling: boolean) => void;
@@ -87,11 +108,13 @@ interface IDEState {
     setIsAIApplying: (applying: boolean) => void;
     setAIApplyProgress: (progress: number) => void;
     applyCodeToEditor: (code: string) => Promise<void>;
+    setAgentTaskStatus: (status: string | null) => void;
+
 
     // Desktop Bridge Actions
     setBridgeStatus: (status: 'online' | 'offline' | 'error') => void;
     setLocalProjectPath: (path: string) => void;
-    setFileHandle: (handle: any) => void;
+    setDirHandle: (handle: any, fileName: string) => void;
     toggleBridgeSync: () => void;
     checkBridgeConnection: () => Promise<boolean>;
     syncToLocalFile: (code: string, force?: boolean) => Promise<void>;
@@ -214,7 +237,9 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     aiMessages: defaultAIMessages,
     isAITyping: false,
     isAIApplying: false,
+    agentTaskStatus: null,
     aiApplyProgress: 0,
+
     isCompiling: false,
     isUploading: false,
     outputContent: [],
@@ -223,9 +248,10 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     isBridgeConnected: false,
     bridgeStatus: 'offline',
     localProjectPath: '',
+    targetFileName: '',
     isBridgeSyncEnabled: false,
     localFileContent: '',
-    fileHandle: null,
+    dirHandle: null,
 
     setIsCompiling: (compiling) => set({ isCompiling: compiling }),
     setIsUploading: (uploading) => set({ isUploading: uploading }),
@@ -294,16 +320,22 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
     setIsAIApplying: (applying) => set({ isAIApplying: applying }),
     setAIApplyProgress: (progress) => set({ aiApplyProgress: progress }),
+    setAgentTaskStatus: (status) => set({ agentTaskStatus: status }),
+
 
     setBridgeStatus: (status) => set({ bridgeStatus: status, isBridgeConnected: status === 'online' }),
     setLocalProjectPath: (path) => set({ localProjectPath: path }),
-    setFileHandle: (handle) => set({ fileHandle: handle }),
+    setDirHandle: (handle, fileName) => set({
+        dirHandle: handle,
+        targetFileName: fileName,
+        localProjectPath: `${handle.name}/${fileName}`
+    }),
     toggleBridgeSync: () => set((state) => ({ isBridgeSyncEnabled: !state.isBridgeSyncEnabled })),
 
     checkBridgeConnection: async () => {
         const state = get();
-        // With Web API, connected means we have a handle
-        if (state.fileHandle) {
+        // With Web API, connected means we have a directory handle
+        if (state.dirHandle && state.targetFileName) {
             set({ bridgeStatus: 'online', isBridgeConnected: true });
             return true;
         } else {
@@ -314,64 +346,106 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
     syncToLocalFile: async (code: string, force = false) => {
         const state = get();
-        if (!state.isBridgeConnected || !state.fileHandle) return;
+        if (!state.isBridgeConnected || !state.dirHandle || !state.targetFileName) return;
         if (!state.isBridgeSyncEnabled && !force) return;
 
+        // Collect latest code version if already busy
+        if (isSyncing) {
+            pendingSyncCode = code;
+            return;
+        }
+
+        isSyncing = true;
+        await FS_LOCK.acquire();
+
         try {
-            // Check permission to write, but do NOT request it (requires user activation)
+            // Check permission (mode: readwrite)
             const options = { mode: 'readwrite' };
-            if ((await state.fileHandle.queryPermission(options)) !== 'granted') {
-                console.warn('[Store] Write permission not granted. Cannot sync.');
+            const permission = await state.dirHandle.queryPermission(options);
+
+            if (permission !== 'granted') {
+                console.warn('[Neural Link] Write permission not granted - awaiting user engagement.');
                 return;
             }
-            const writable = await state.fileHandle.createWritable();
+
+            // RE-ACQUIRE HANDLE: This is critical for preventing InvalidStateError
+            // Browser state can change if the file was modified externally.
+            let fileHandle;
+            try {
+                fileHandle = await state.dirHandle.getFileHandle(state.targetFileName, { create: true });
+            } catch (err: any) {
+                if (err.name === 'InvalidStateError' || err.name === 'NotFoundError') {
+                    // Try one more time by refreshing the directory handle logic (if possible)
+                    console.log('[Neural Link] Resetting stale handle...');
+                    throw err;
+                }
+                throw err;
+            }
+
+            // Open writable stream
+            const writable = await fileHandle.createWritable({ keepExistingData: false });
             await writable.write(code);
             await writable.close();
+
+            console.log('[Neural Link] Sync success:', state.targetFileName);
         } catch (e: any) {
-            console.error('[Store] Sync to local file failed:', e);
-            if (e.name === 'InvalidStateError' || e.name === 'NotFoundError') {
-                set({
-                    bridgeStatus: 'offline',
-                    isBridgeConnected: false,
-                    fileHandle: null,
-                    localProjectPath: ''
-                });
-                alert('Your linked file changed externally and browser security requires you to re-link your project file. Please click Select File in the UI.');
+            console.error('[Neural Link] Sync failed:', e);
+
+            // Handle specific "State Changed" error mentioned by user
+            const isInvalidState = e.name === 'InvalidStateError' || e.message.includes('state had changed');
+            const isNotFound = e.name === 'NotFoundError';
+
+            if (isInvalidState || isNotFound) {
+                set({ bridgeStatus: 'error' });
+                // Don't alert immediately to avoid spam, but update status
+            }
+        } finally {
+            FS_LOCK.release();
+            isSyncing = false;
+
+            // Drain the queue if new code arrived during the write
+            if (pendingSyncCode !== null) {
+                const nextCode = pendingSyncCode;
+                pendingSyncCode = null;
+                if (syncTimeout) clearTimeout(syncTimeout);
+                syncTimeout = setTimeout(() => useIDEStore.getState().syncToLocalFile(nextCode, true), 100);
             }
         }
     },
 
     updateLocalFileContent: async () => {
         const state = get();
-        if (!state.isBridgeConnected || !state.fileHandle) return null;
+        if (!state.isBridgeConnected || !state.dirHandle || !state.targetFileName) return null;
 
         try {
             // Check permission to read
             const options = { mode: 'read' };
-            if ((await state.fileHandle.queryPermission(options)) !== 'granted') {
+            if ((await state.dirHandle.queryPermission(options)) !== 'granted') {
                 console.warn('[Store] Read permission not granted, cannot read file.');
                 return null;
             }
 
-            // This is the line that throws InvalidStateError if the user modified the file externally
-            const file = await state.fileHandle.getFile();
+            const fileHandle = await state.dirHandle.getFileHandle(state.targetFileName, { create: true });
+            const file = await fileHandle.getFile();
             const content = await file.text();
             set({ localFileContent: content });
             return content as string;
         } catch (e: any) {
             console.error('[Store] Read from local file failed:', e);
 
-            // If the state is invalid, the OS/Browser invalidated our handle because the file 
-            // changed externally in a way that breaks the reference (common on Windows).
-            // We must disconnect and require the user to re-select the file.
-            if (e.name === 'InvalidStateError' || e.name === 'NotFoundError') {
+            // Only disconnect on permanent folder-level errors
+            const isCriticalError = e.name === 'NotFoundError' ||
+                (e.name === 'InvalidStateError' && !e.message.toLowerCase().includes('lock'));
+
+            if (isCriticalError) {
                 set({
                     bridgeStatus: 'offline',
                     isBridgeConnected: false,
-                    fileHandle: null,
+                    dirHandle: null,
+                    targetFileName: '',
                     localProjectPath: ''
                 });
-                alert('Your linked file changed externally and browser security requires you to re-select it. Please click Select File again in the UI.');
+                alert('Project folder connection lost. Please click Select Folder in the UI.');
             }
         }
         return null;
@@ -401,8 +475,8 @@ export const useIDEStore = create<IDEState>((set, get) => ({
                     aiApplyProgress: Math.round((written / totalChars) * 100),
                 });
 
-                // Periodic sync to bridge if enabled
-                if (written % 50 === 0) {
+                // Periodic sync to bridge if enabled (every 100 chars to avoid disk stress)
+                if (written % 100 === 0) {
                     useIDEStore.getState().syncToLocalFile(currentContent);
                 }
 
@@ -430,7 +504,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
             aiApplyProgress: 100,
         });
 
-        useIDEStore.getState().syncToLocalFile(code);
+        await useIDEStore.getState().syncToLocalFile(code, true);
     },
 }));
 

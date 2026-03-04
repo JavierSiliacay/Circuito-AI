@@ -93,7 +93,7 @@ export default function MaintenanceMode({ children }: { children: React.ReactNod
                                 transition={{ delay: 0.1 }}
                                 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tighter leading-tight"
                             >
-                                Circuito-AI Developer is<br />
+                                Circuito AI<br />
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-primary via-blue-400 to-purple-ai">
                                     currently under maintenance.
                                 </span>
@@ -107,34 +107,37 @@ export default function MaintenanceMode({ children }: { children: React.ReactNod
                             >
                                 We're upgrading our hardware intelligence core to provide a more powerful architecting experience.
                                 Estimated time for link restoration: <span className="text-cyan-primary font-bold">3-4 days</span>.
+                                <br />
+                                <span className="inline-block mt-4 text-[10px] font-black text-white/40 uppercase tracking-[0.3em] border-t border-white/5 pt-4">
+                                    - Javier G. Siliacay / The Creator
+                                </span>
                             </motion.p>
 
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.3 }}
-                                className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-16"
+                                className="flex flex-col items-center gap-5 mb-16"
                             >
-                                <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
-                                    <CheckCircle2 className="w-5 h-5 text-green-success" />
-                                    <span className="text-sm font-bold text-white/80 tracking-tight uppercase">Database Secure</span>
+                                <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                                    <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
+                                        <CheckCircle2 className="w-5 h-5 text-green-success" />
+                                        <span className="text-sm font-bold text-white/80 tracking-tight uppercase">Database Secure</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
+                                        <CheckCircle2 className="w-5 h-5 text-green-success" />
+                                        <span className="text-sm font-bold text-white/80 tracking-tight uppercase">Assets Safe</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-md">
-                                    <CheckCircle2 className="w-5 h-5 text-green-success" />
-                                    <span className="text-sm font-bold text-white/80 tracking-tight uppercase">Assets Safe</span>
-                                </div>
-                            </motion.div>
 
-                            <motion.button
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.4 }}
-                                onClick={() => setShowLogin(true)}
-                                className="inline-flex items-center gap-2.5 text-[11px] font-black tracking-[0.2em] text-text-muted/60 hover:text-cyan-primary uppercase transition-all group"
-                            >
-                                <Lock className="w-4 h-4 transition-transform group-hover:scale-110" />
-                                AUTHORIZED ACCESS OVERRIDE
-                            </motion.button>
+                                <button
+                                    onClick={() => setShowLogin(true)}
+                                    className="inline-flex items-center gap-2.5 text-[11px] font-black tracking-[0.2em] text-text-muted/60 hover:text-cyan-primary uppercase transition-all group pt-2"
+                                >
+                                    <Lock className="w-4 h-4 transition-transform group-hover:scale-110" />
+                                    AUTHORIZED ACCESS OVERRIDE
+                                </button>
+                            </motion.div>
                         </motion.div>
                     ) : (
                         <motion.div

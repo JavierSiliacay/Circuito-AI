@@ -12,8 +12,7 @@ export default function BridgeManager() {
         localProjectPath,
         isBridgeSyncEnabled,
         toggleBridgeSync,
-        setFileHandle,
-        setLocalProjectPath,
+        setDirHandle,
         setBridgeStatus,
         updateLocalFileContent
     } = useIDEStore();
@@ -23,35 +22,34 @@ export default function BridgeManager() {
     const handleBrowseFiles = async () => {
         setIsChecking(true);
         try {
-            if (!('showOpenFilePicker' in window)) {
+            if (!('showDirectoryPicker' in window)) {
                 throw new Error('Your browser does not support the Web File System Access API. Please use Chrome, Edge, or Opera.');
             }
 
-            const [handle] = await (window as any).showOpenFilePicker({
-                types: [
-                    {
-                        description: 'Arduino & Code Files',
-                        accept: {
-                            'text/plain': ['.ino', '.cpp', '.h', '.hpp', '.c', '.txt']
-                        }
-                    }
-                ]
+            const dirHandle = await (window as any).showDirectoryPicker({
+                mode: 'readwrite'
             });
 
-            // Request permission upfront during user gesture
-            if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
-                await handle.requestPermission({ mode: 'readwrite' });
+            let targetFile = '';
+            for await (const entry of dirHandle.values()) {
+                if (entry.kind === 'file' && (entry.name.endsWith('.ino') || entry.name.endsWith('.cpp') || entry.name.endsWith('.c'))) {
+                    targetFile = entry.name;
+                    break;
+                }
             }
 
-            setFileHandle(handle);
-            setLocalProjectPath(handle.name);
+            if (!targetFile) {
+                throw new Error("No Arduino sketch (.ino, .cpp, .c) found in this folder. Please select your project folder.");
+            }
+
+            setDirHandle(dirHandle, targetFile);
             setBridgeStatus('online');
 
             await updateLocalFileContent();
         } catch (e: any) {
             if (e.name !== 'AbortError') {
-                console.error('Failed to select file:', e);
-                alert(e.message || "Failed to open file.");
+                console.error('Failed to select folder:', e);
+                alert(e.message || "Failed to open folder.");
             }
         } finally {
             setIsChecking(false);
