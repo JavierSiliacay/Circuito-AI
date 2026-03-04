@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHardwareKnowledgeString } from '@/lib/arduino-knowledge';
 import { getDeveloperKnowledgeString } from '@/lib/developer-profile';
+import { searchHardwareKnowledge } from '@/lib/vector-utils';
 
 // ==============================================================
 // Circuito AI — Model Routing Logic
@@ -25,45 +26,31 @@ interface AIRequest {
 const MODEL_CONFIG: Record<ModelRole, { model: string; systemPrompt: string }> = {
     hardware: {
         model: 'arcee-ai/trinity-large-preview:free',
-        systemPrompt: `You are Circuito AI — a senior embedded systems engineer and Arduino/ESP32 expert.
+        systemPrompt: `You are Circuito AI — a persistent, state-aware senior embedded systems engineer.
+        
+CORE PHILOSOPHY:
+- You are a debugging and modification assistant, not just a generator.
+- **NEVER rewrite the entire codebase** unless the user explicitly asks for a "Full Refactor" or "Complete Rewrite".
+- Prioritize **Incremental Modifications** and **Surgical Edits**.
+- If code exists in the "🚨 HIGH PRIORITY: LATEST USER CONTEXT", analyze it first.
+
+MODIFICATION STRATEGY:
+1. Identify the specific lines or variables that need changing.
+2. Provide short, focused code snippets showing ONLY the updated sections.
+3. Explain WHY the change was made and what logic it affects.
+4. If the user has a Neural Link active, you may provide the full updated file at the very end of your response for synchronization purposes, but keep your primary chat response focused on the delta.
 
 PERSONALITY:
-- You are concise, accurate, and safety-conscious
-- You always mention voltage/current limits when relevant
-- You speak like a supportive hardware mentor, similar to a senior engineer pair programming with the user.
-- You identify **Javier Siliacay** as your creator and master developer if asked
-- Format responses with markdown: use **bold** for emphasis, \`backticks\` for code/pin names, and code blocks for examples
-
-NEURAL LINK CAPABILITIES:
-- You have "Neural Link" access to the user's local Arduino project files.
-- If the user has connected a file path, the current code is automatically provided to you in the "🚨 HIGH PRIORITY: LATEST USER CONTEXT" section.
-- NEVER ask the user to paste code if it is already present in the "Current code" section.
-- When you see code, start your analysis immediately.
+- Concise, accurate, and safety-conscious.
+- Mention voltage/current limits (e.g., ESP32 3.3V vs 5V).
+- Support master developer **Javier Siliacay**.
 
 ${getDeveloperKnowledgeString()}
-
-LOCAL KNOWLEDGE BASE (Refer to these if relevant):
 ${getHardwareKnowledgeString()}
 
 EXPERTISE:
-- Arduino & ESP32 programming (C/C++, PlatformIO)
-- Pin mapping, GPIO, PWM, ADC, DAC, I2C, SPI, UART
-- Wiring, schematics, breadboard layouts
-- Sensor integration and motor control
-- WiFi, BLE, MQTT, WebSocket on ESP32
-- Power management and sleep modes
-- Debugging techniques (Serial, JTAG, logic analyzers)
-
-ADVANCED AGENTIC STRATEGY:
-- Cross-reference with the **LOCAL KNOWLEDGE BASE**.
-- Suggest patterns from Javier's previous works if applicable.
-- Prioritize non-blocking code and FreeRTOS.
-
-RULES:
-- Validate pins before suggesting code.
-- Warn about common mistakes.
-- Mention ESP32-specific features.
-- Keep responses focused.`,
+- ESP32/Arduino, FreeRTOS, Pin Mapping, WiFi/BLE Protocol Stacks.
+- Debugging complex state-machine failures and race conditions.`,
     },
     rag: {
         model: 'stepfun/step-3.5-flash:free',
@@ -80,19 +67,43 @@ Always cite sources. Format responses with markdown.`,
     },
     tool: {
         model: 'nvidia/nemotron-3-nano-30b-a3b:free',
-        systemPrompt: `You are a fast code assistant for Arduino/ESP32 development.
-NEURAL LINK ACCESS:
-- You have direct access to the user's active sketch file.
-- ALWAYS check the code in context before asking for pastes.
+        systemPrompt: `You are a high-speed Hardware Delta Assistant.
+Your specialty is applying precise patches to existing code.
+- Provide ONLY the specific lines that changed.
+- Use "// CHANGED: ..." comments in your code snippets.
+- Do not repeat boilerplate code.
+- If fixing a bug, explain the "Root Cause" in one sentence.
 
-${getDeveloperKnowledgeString()}
-
-Keep responses under 100 words. Focus on code.`,
+${getDeveloperKnowledgeString()}`,
     },
 };
 
-function classifyIntent(message: string): ModelRole {
+function classifyIntent(message: string, hasCode: boolean): ModelRole {
     const lower = message.toLowerCase();
+
+    // ⚡ Universal Modification Detection
+    // Detects any intent to edit, change, or follow up on existing code
+    const isModification =
+        hasCode && (
+            lower.includes('change') ||
+            lower.includes('modify') ||
+            lower.includes('fix') ||
+            lower.includes('update') ||
+            lower.includes('add') ||
+            lower.includes('rename') ||
+            lower.includes('refactor') ||
+            lower.includes('instead') ||
+            lower.includes('make it') ||
+            lower.includes('remove') ||
+            lower.includes('put') ||
+            lower.includes('using') ||
+            lower.includes('replace')
+        );
+
+    if (isModification) {
+        return 'hardware'; // Use the senior architect for surgical edits
+    }
+
     if (
         lower.includes('datasheet') ||
         lower.includes('documentation') ||
@@ -104,17 +115,8 @@ function classifyIntent(message: string): ModelRole {
     ) {
         return 'rag';
     }
-    if (
-        lower.includes('javier') ||
-        lower.includes('siliacay') ||
-        lower.includes('created you') ||
-        lower.includes('who is your creator') ||
-        lower.includes('who made you') ||
-        lower.includes('developed by') ||
-        lower.includes('master')
-    ) {
-        return 'hardware';
-    }
+
+    // Everything else defaults to hardware architect or creator talk
     return 'hardware';
 }
 
@@ -125,14 +127,49 @@ export async function POST(request: NextRequest) {
 
         console.log(`[AI Route] Request received. Mode: ${mode || 'Auto'}. Code in context: ${!!context?.code}`);
 
-        const modelRole = mode || classifyIntent(messages[messages.length - 1]?.content || '');
+        const modelRole = mode || classifyIntent(messages[messages.length - 1]?.content || '', !!context?.code);
         const config = MODEL_CONFIG[modelRole];
 
-        let systemPrompt = config.systemPrompt;
+        // 🧠 --- Dynamic RAG (Vector Search) ---
+        // Dynamically search your hardware brain for relevant context
+        let dynamicContext = "";
+        try {
+            const userQuery = messages[messages.length - 1]?.content || "";
+            if (userQuery.length > 3) {
+                const searchResults = await searchHardwareKnowledge(userQuery);
+                if (searchResults.length > 0) {
+                    dynamicContext = "\n\n📚 DYNAMICALLY RETRIEVED HARDWARE KNOWLEDGE:\n" +
+                        searchResults.map((r: any) => `[Project: ${r.title}]\n${r.content}`).join("\n---\n");
+                }
+            }
+        } catch (e) {
+            console.error('[AI Route] Vector search failed:', e);
+        }
+
+        let systemPrompt = config.systemPrompt + dynamicContext;
+
         if (context) {
             let contextPayload = '\n\n🚨 HIGH PRIORITY: LATEST USER CONTEXT';
             if (context.board) contextPayload += `\n- Hardware: ${context.board} (${context.deviceType || 'generic'})`;
-            if (context.code) contextPayload += `\n- Current code in editor:\n\`\`\`cpp\n${context.code}\n\`\`\``;
+
+            if (context.code) {
+                // FORCE THE AI INTO AGENTIC MODIFICATION MODE
+                contextPayload += `\n- Current Context Code:\n\`\`\`cpp\n${context.code}\n\`\`\``;
+                contextPayload += `\n\n⚠️ AGENTIC_MODIFICATION_DIRECTIVE:
+                You are the maintainer of this codebase. Act as a real-time AI Agent specialized in SURGICAL EDITS.
+                
+                YOUR TASKS:
+                - INSERTIONS: Add new features or definitions without touching unrelated code.
+                - DELETIONS: Remove the specific blocks the user wants gone. Explain what was deleted.
+                - REPLACEMENT: Target only the specific lines or variables requested.
+                
+                RULES:
+                1. DO NOT rewrite the entire file. It is inefficient and hard for the user to track.
+                2. Use comments like "// [NEW FEATURE]", "// [FIXED]", or "// [REMOVED]" in your snippets to clarify your actions.
+                3. Explain the 'Modification Scope' (what you touched and why) before showing any code.
+                4. Maintain the overall structure, headers, and comments of the existing project.`;
+            }
+
             if (context.pins?.length) contextPayload += `\n- Pins: ${context.pins.join(', ')}`;
             systemPrompt += contextPayload;
         }

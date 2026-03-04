@@ -277,6 +277,11 @@ export default function Home() {
       useIDEStore.getState().setDirHandle(dirHandle, targetFile);
       useIDEStore.getState().setBridgeStatus('online');
       setLocalPathInput(`${dirHandle.name}/${targetFile}`);
+
+      // Auto-start a new session for the new local project context
+      setActiveConvoId(null);
+      setInput('');
+      console.log('[Circuito AI] Neural Link established. Starting fresh session for project.');
     } catch (e: any) {
       if (e.name !== 'AbortError') {
         console.error('Failed to select folder:', e);
@@ -346,6 +351,8 @@ export default function Home() {
   useEffect(() => {
     if (activeConvoId) {
       localStorage.setItem('circuito_active_convo', activeConvoId);
+    } else {
+      localStorage.removeItem('circuito_active_convo');
     }
   }, [activeConvoId]);
 
@@ -541,9 +548,10 @@ export default function Home() {
     };
 
     let convoId = activeConvoId;
+    const isNewStart = !convoId || messages.length === 0;
 
     // 1. If we're starting fresh, create the conversation WITH the user message
-    if (!convoId) {
+    if (isNewStart) {
       console.log('[Circuito AI] Starting new session with user msg');
       convoId = createConversation([userMessage]);
       setInput('');
@@ -1361,7 +1369,17 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-6 max-h-[65vh] overflow-y-auto custom-scrollbar pr-3 -mr-3">
+                  {/* Critical Instructions */}
+                  <div className="p-4 rounded-2xl bg-cyan-primary/5 border border-cyan-primary/20 flex gap-4 items-center">
+                    <div className="w-10 h-10 rounded-xl bg-cyan-primary/10 flex items-center justify-center border border-cyan-primary/20 shrink-0">
+                      <img src="/brand/master-logo.png" alt="Circuito AI" className="w-6 h-6 object-contain mix-blend-screen animate-pulse" />
+                    </div>
+                    <p className="text-[11px] text-white leading-relaxed font-bold tracking-tight italic">
+                      "Before you proceed, you must first save your existing project file so that the Circuito AI Agent can access it from your Arduino IDE."
+                    </p>
+                  </div>
+
                   <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-4">
                     <div className="space-y-1.5 text-left">
                       <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Status</label>
@@ -1440,10 +1458,12 @@ export default function Home() {
                       </button>
                     </div>
                   </div>
+                </div>
 
+                <div className="mt-6 pt-6 border-t border-white/5">
                   <button
                     onClick={() => setIsBridgeModalOpen(false)}
-                    className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[11px] font-black uppercase tracking-widest transition-all"
+                    className="w-full h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[11px] font-black uppercase tracking-widest transition-all shadow-lg"
                   >
                     Close Settings
                   </button>
