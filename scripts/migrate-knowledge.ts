@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_PROJECTS } from '../src/lib/arduino-knowledge';
 import { generateEmbedding } from '../src/lib/vector-utils';

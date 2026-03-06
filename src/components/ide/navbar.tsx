@@ -249,6 +249,7 @@ export default function IDENavbar() {
                     <nav className="hidden md:flex items-center gap-1 ml-4">
                         {[
                             { href: '/ide', label: 'IDE' },
+                            { href: '/diagnostic', label: 'Diagnostic' },
                             { href: '/flash', label: 'Flash' },
                             { href: '/devices', label: 'Devices' },
                             { href: '/circuits', label: 'Circuits' },

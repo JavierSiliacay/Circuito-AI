@@ -16,7 +16,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            model: 'liquid/lfm-2.5-1.2b-thinking:free',
+            model: 'openai/text-embedding-3-small',
             input: text.replace(/\n/g, ' '),
         }),
     });

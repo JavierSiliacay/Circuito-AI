@@ -5,11 +5,11 @@
  */
 
 export interface ProjectKnowledge {
-    id: string;
-    title: string;
-    description: string;
-    pins: string[];
-    libraries: string[];
+  id: string;
+  title: string;
+  description: string;
+  pins: string[];
+  libraries: string[];
 }
 
 export const LOCAL_PROJECTS: ProjectKnowledge[] = [
@@ -638,14 +638,27 @@ export const LOCAL_PROJECTS: ProjectKnowledge[] = [
       "Adafruit_ILI9341.h",
       "SoftwareSerial.h"
     ]
+  },
+  {
+    "id": "obd2_can_traffic_log",
+    "title": "OBD2 CAN Traffic Log (canid.pdf)",
+    "description": "Raw OBD2 CAN bus traffic data log. Contains periodic messages and state changes for various vehicle control units. Frequent IDs: 0x545 (Engine/Status), 0x350 (ABS/Steering), 0x316 (Engine RPM/Speed), 0x4F0 (Lighting/BCM), and 0x329. This dataset is used for reverse engineering vehicle-specific PID controllers and understanding bus load.",
+    "pins": [
+      "CAN_RX=4",
+      "CAN_TX=5"
+    ],
+    "libraries": [
+      "ESP32-TWAI-CAN",
+      "mcp_can.h"
+    ]
   }
 ];
 
 export const getHardwareKnowledgeString = () => {
-    return LOCAL_PROJECTS.map(p => 
-        "- PROJECT: " + p.title + "\n" + 
-        "  DESC: " + p.description + "\n" + 
-        "  PINS: " + p.pins.join(", ") + "\n" + 
-        "  LIBS: " + p.libraries.join(", ") + "\n"
-    ).join("\n");
+  return LOCAL_PROJECTS.map(p =>
+    "- PROJECT: " + p.title + "\n" +
+    "  DESC: " + p.description + "\n" +
+    "  PINS: " + p.pins.join(", ") + "\n" +
+    "  LIBS: " + p.libraries.join(", ") + "\n"
+  ).join("\n");
 };

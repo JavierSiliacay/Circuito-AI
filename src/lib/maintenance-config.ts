@@ -9,10 +9,16 @@ export const MAINTENANCE_CONFIG = {
     isEnabled: process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' || true, // Hardcoded to true for maintenance window!
 
     // Authorized credentials for maintenance bypass
-    auth: {
-        username: 'javiersiliacay',
-        password: '09262561570'
-    },
+    authorizedUsers: [
+        {
+            username: 'javiersiliacay',
+            password: '09262561570'
+        },
+        {
+            username: 'jhtongco',
+            password: 'jhtongco'
+        }
+    ],
 
     // Session key for persistent bypass
     sessionKey: 'circuito_maintenance_bypass'

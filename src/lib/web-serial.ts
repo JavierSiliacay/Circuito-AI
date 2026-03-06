@@ -25,6 +25,9 @@ export interface SerialConnection {
     isOpen: boolean;
 }
 
+// Memory-stable registry to prevent 'Locked Stream' errors across hot-reloads and UI switches
+const activeConnections = new Map<SerialPort, SerialConnection>();
+
 // Known USB vendor/product IDs for common boards
 const KNOWN_DEVICES: Record<string, { vendor: string; board: string }> = {
     '0x10C4:0xEA60': { vendor: 'Silicon Labs', board: 'ESP32 (CP2102)' },
@@ -110,38 +113,54 @@ export async function openConnection(
     port: SerialPort,
     baudRate: number = 115200
 ): Promise<SerialConnection> {
-    if (port.readable) {
-        // Port is already open
-        const readable = port.readable as ReadableStream<Uint8Array>;
-        const writable = port.writable as WritableStream<Uint8Array> | null;
+    // 🛡️ REUSE: If we already have a direct reference to this port's connection, return it
+    const existing = activeConnections.get(port);
+    if (existing && existing.isOpen) {
+        console.log('[WebSerial] Reusing existing connection registry entry');
+        return existing;
+    }
+
+    // 🛡️ RECOVERY: If port is PHYSICALLY open and locked, but NOT in our registry
+    // This happens after hot-reloads or if another part of the system opened it
+    if (port.readable && port.readable.locked) {
+        console.warn('[WebSerial] Port is externally locked. Attempting to create recovery connection.');
+        // We can't get a NEW reader, but we can return an object that represents the fact it's open
         return {
             port,
-            reader: readable.getReader(),
-            writer: writable ? writable.getWriter() : null,
+            reader: null,
+            writer: null,
             isOpen: true,
         };
     }
 
-    await port.open({ baudRate });
+    // Open if closed
+    if (!port.readable) {
+        await port.open({ baudRate });
+    }
 
-    // For ESP32/Arduino, pulsing DTR/RTS can help initialize the chip/monitor.
-    // We set them to false, wait, then true, which is a standard "soft" start.
+    // Standard DTR/RTS pulse for Arduino/ESP32 reset/init
     try {
         await (port as any).setSignals({ dataTerminalReady: false, requestToSend: false });
         await new Promise(r => setTimeout(r, 100));
         await (port as any).setSignals({ dataTerminalReady: true, requestToSend: true });
     } catch (e) {
-        console.warn('Could not set control signals:', e);
+        // Not critical, some drivers don't support it
     }
 
-    const readable = port.readable as ReadableStream<Uint8Array> | null;
-    const writable = port.writable as WritableStream<Uint8Array> | null;
-    return {
+    const readable = port.readable;
+    const writable = port.writable;
+
+    const connection: SerialConnection = {
         port,
         reader: readable ? readable.getReader() : null,
         writer: writable ? writable.getWriter() : null,
         isOpen: true,
     };
+
+    // Store in registry
+    activeConnections.set(port, connection);
+
+    return connection;
 }
 
 /**
@@ -167,20 +186,24 @@ export async function resetBoardForFlash(port: SerialPort): Promise<void> {
 // Close a serial connection
 export async function closeConnection(connection: SerialConnection): Promise<void> {
     try {
+        // Remove from registry immediately
+        activeConnections.delete(connection.port);
+
         if (connection.reader) {
             await connection.reader.cancel();
             connection.reader.releaseLock();
+            connection.reader = null; // Prevent double release
         }
         if (connection.writer) {
-            await connection.writer.close();
-            connection.writer.releaseLock();
+            await connection.writer.releaseLock();
+            connection.writer = null;
         }
         if (connection.port.readable || connection.port.writable) {
             await connection.port.close();
         }
         connection.isOpen = false;
-    } catch {
-        // Port may already be closed
+    } catch (err) {
+        console.warn('[WebSerial] Close Error (might already be closed):', err);
         connection.isOpen = false;
     }
 }
@@ -204,7 +227,8 @@ export async function readSerial(
                     onData(text);
                 }
             } catch (err) {
-                if (running && onError) {
+                // If it was cancelled by reader.cancel(), don't report as error unless unexpected
+                if (running && onError && (err as any).name !== 'AbortError') {
                     onError(err instanceof Error ? err : new Error(String(err)));
                 }
                 break;
@@ -212,8 +236,10 @@ export async function readSerial(
         }
     };
 
+    // Fire and forget, loop handles it
     readLoop();
 
+    // Enhanced cleanup function: Not only stops loop, but can be configured to release the lock
     return () => {
         running = false;
     };

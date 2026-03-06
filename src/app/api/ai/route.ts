@@ -7,7 +7,7 @@ import { searchHardwareKnowledge } from '@/lib/vector-utils';
 // Circuito AI — Model Routing Logic
 // ==============================================================
 
-type ModelRole = 'hardware' | 'rag' | 'tool';
+type ModelRole = 'hardware' | 'rag' | 'tool' | 'diagnostic';
 
 interface AIRequest {
     messages: { role: string; content: string }[];
@@ -19,6 +19,7 @@ interface AIRequest {
         libs?: string[];
         circuit?: object;
         deviceType?: string;
+        isDiagnosticRequest?: boolean; // 👈 New diagnostic hint
     };
     mode?: ModelRole;
 }
@@ -76,6 +77,23 @@ Your specialty is applying precise patches to existing code.
 
 ${getDeveloperKnowledgeString()}`,
     },
+    diagnostic: {
+        model: 'stepfun/step-3.5-flash:free',
+        systemPrompt: `You are the Circuito AI — Specialized Automotive Electronics & OBD2 Diagnostic Specialist.
+        
+CORE EXPERTISE:
+- ISO 15765-4 (CAN bus), SAE J1939, and OBD2 Protocols.
+- Reverse engineering raw hex traffic from vehicle bus logs (canid.pdf scan data).
+- Diagnostic Trouble Code (DTC) interpretation and diagnostic logic design.
+- Designing Arduino/ESP32 bridges for vehicle telemetry.
+
+OBD2 CONTEXT:
+- You are aware of the 'obd2_can_traffic_log' in the hardware knowledge base.
+- IDs like 0x545 (Engine), 0x316 (RPM), 0x350 (ABS), and 0x4F0 (BCM) are high priority.
+
+GOAL:
+Provide deep technical analysis of vehicle data and guide the user **Javier Siliacay** in building professional automotive interfaces.`,
+    },
 };
 
 function classifyIntent(message: string, hasCode: boolean): ModelRole {
@@ -116,6 +134,19 @@ function classifyIntent(message: string, hasCode: boolean): ModelRole {
         return 'rag';
     }
 
+    if (
+        lower.includes('obd') ||
+        lower.includes('can bus') ||
+        lower.includes('traffic') ||
+        lower.includes('scanning') ||
+        lower.includes('hex') ||
+        lower.includes('engine code') ||
+        lower.includes('dtc') ||
+        lower.includes('vehicle data')
+    ) {
+        return 'diagnostic';
+    }
+
     // Everything else defaults to hardware architect or creator talk
     return 'hardware';
 }
@@ -127,7 +158,13 @@ export async function POST(request: NextRequest) {
 
         console.log(`[AI Route] Request received. Mode: ${mode || 'Auto'}. Code in context: ${!!context?.code}`);
 
-        const modelRole = mode || classifyIntent(messages[messages.length - 1]?.content || '', !!context?.code);
+        let modelRole: ModelRole;
+        if (context?.isDiagnosticRequest) {
+            modelRole = 'diagnostic';
+        } else {
+            modelRole = mode || classifyIntent(messages[messages.length - 1]?.content || '', !!context?.code);
+        }
+
         const config = MODEL_CONFIG[modelRole];
 
         // 🧠 --- Dynamic RAG (Vector Search) ---
@@ -147,6 +184,18 @@ export async function POST(request: NextRequest) {
         }
 
         let systemPrompt = config.systemPrompt + dynamicContext;
+
+        // 🔀 --- Neural Link Status & Fallback ---
+        const isProjectAware = !!context?.code;
+        if (!isProjectAware) {
+            systemPrompt += `
+\n\n⚠️ NEURAL_LINK_INACTIVE_ADVISORY:
+- The user's local Arduino project folder is NOT synchronized/accessible.
+- You are currently in STANDALONE CHAT MODE.
+- You cannot see or analyze the user's specific local files.
+- If the user asks for code modifications or file-specific help, politely inform them that you need them to "Sync Folder" or "Activate Neural Link" for deep analysis.
+- Provide general, high-quality hardware advice based on your core knowledge and retrieved RAG facts.`;
+        }
 
         if (context) {
             let contextPayload = '\n\n🚨 HIGH PRIORITY: LATEST USER CONTEXT';
@@ -201,8 +250,17 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
             const errorBody = await response.text();
+            let parsedError = { message: 'Deep Intel link unstable.' };
+            try {
+                const json = JSON.parse(errorBody);
+                parsedError.message = json.error?.message || json.message || parsedError.message;
+            } catch (e) { }
+
             console.error(`[AI Route] OpenRouter error ${response.status}:`, errorBody);
-            return NextResponse.json({ error: 'Deep Intel link unstable.' }, { status: response.status });
+            return NextResponse.json({
+                error: parsedError.message,
+                status: response.status
+            }, { status: response.status });
         }
 
         // --- Stream Transformation ---

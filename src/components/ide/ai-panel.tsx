@@ -2,6 +2,7 @@
 
 import { Send, MoreVertical, Copy, Check, ClipboardCheck, Play, Loader2 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
+import { useSerialStore } from '@/store/serial-store';
 import { getInstalledLibraries } from '@/lib/library-manager';
 import { Button } from '@/components/ui/button';
 import { CircuitoLogo } from '@/components/ui/logo';
@@ -150,6 +151,7 @@ export default function AIPanel() {
                         code: state.editorContent,
                         deviceType: state.device.board,
                         libs: getInstalledLibraries().map(l => l.name),
+                        telemetry: useSerialStore.getState().serialOutput.slice(-50).join('\n'),
                     },
                 }),
             });

@@ -24,6 +24,7 @@ import {
   RotateCcw,
   Monitor,
   FolderOpen,
+  Activity,
 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { CircuitoLogo } from '@/components/ui/logo';
@@ -32,6 +33,7 @@ import { flashEsp32 } from '@/lib/esp-flash';
 import { supabase } from '@/lib/supabase';
 import BoardManager from '@/components/board-manager';
 import { BoardDefinition, getInstalledBoardsList } from '@/lib/board-manager';
+import Link from 'next/link';
 
 // ─── Types ──────────────────────────────────────────────
 interface Message {
@@ -978,6 +980,16 @@ export default function Home() {
                   )}
                   {isFlashing ? 'WRITING...' : 'FLASH FIRMWARE'}
                 </button>
+
+                <div className="pt-2">
+                  <Link
+                    href="/diagnostic"
+                    className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary hover:bg-cyan-primary/20 hover:border-cyan-primary/40 transition-all font-black text-[11px] uppercase tracking-widest shadow-lg shadow-cyan-primary/5 group transition-all"
+                  >
+                    <Activity className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    Automotive Diagnostic
+                  </Link>
+                </div>
               </div>
             </motion.aside>
           </>

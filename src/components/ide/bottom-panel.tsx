@@ -11,6 +11,7 @@ import {
     X,
     Usb,
     RotateCcw,
+    Sparkles,
 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { useSerialStore } from '@/store/serial-store';
@@ -54,6 +55,9 @@ export default function BottomPanel() {
         connectDevice,
         openSerial,
         clearOutput,
+        analyzeDiagnostic,
+        diagnosticInsights,
+        isAnalyzing,
     } = useSerialStore();
 
     useEffect(() => {
@@ -75,7 +79,54 @@ export default function BottomPanel() {
     };
 
     return (
-        <div className="border-t border-border-dim bg-surface-1 flex flex-col">
+        <div className="border-t border-border-dim bg-surface-1 flex flex-col relative overflow-hidden">
+            {/* AI Insights Overlay (Slide-out) */}
+            <AnimatePresence>
+                {diagnosticInsights.length > 0 && isBottomPanelOpen && bottomPanelTab === 'serial' && (
+                    <motion.div
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        className="absolute right-0 top-9 bottom-0 w-80 bg-[#161F36]/95 backdrop-blur-xl border-l border-white/10 z-50 p-4 shadow-2xl flex flex-col"
+                    >
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-cyan-primary animate-pulse" />
+                                <h4 className="text-[11px] font-black text-white uppercase tracking-widest">Diagnostic Report</h4>
+                            </div>
+                            <button
+                                onClick={() => useSerialStore.setState({ diagnosticInsights: [] })}
+                                className="p-1 text-text-muted hover:text-white transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <ScrollArea className="flex-1 pr-2">
+                            <div className="text-[12px] text-text-secondary leading-relaxed space-y-3 font-medium">
+                                {diagnosticInsights[0]?.split('\n').map((line, i) => (
+                                    <p key={i}>{line}</p>
+                                ))}
+                            </div>
+                            {isAnalyzing && (
+                                <div className="flex gap-1.5 mt-4">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-bounce delay-75" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-bounce delay-150" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-bounce delay-300" />
+                                </div>
+                            )}
+                        </ScrollArea>
+                        <div className="pt-4 border-t border-white/5">
+                            <button
+                                onClick={() => useSerialStore.setState({ diagnosticInsights: [] })}
+                                className="w-full py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black uppercase text-text-muted hover:text-white transition-all"
+                            >
+                                Close Insights
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Tab bar */}
             <div className="h-9 flex items-center border-b border-border-dim px-2 gap-0.5">
                 {tabs.map((tab) => (
@@ -100,7 +151,26 @@ export default function BottomPanel() {
 
                 {/* Serial monitor extras */}
                 {bottomPanelTab === 'serial' && isBottomPanelOpen && (
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="ml-auto flex items-center gap-3 pr-2">
+                        {/* THE NEW AI CO-PILOT BUTTON */}
+                        <button
+                            onClick={analyzeDiagnostic}
+                            disabled={isAnalyzing || serialOutput.length === 0}
+                            className={`flex items-center gap-2 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg border transition-all active:scale-95 ${isAnalyzing
+                                    ? 'bg-cyan-primary/20 border-cyan-primary/50 text-cyan-primary'
+                                    : 'bg-gradient-to-r from-cyan-primary/10 to-blue-600/10 border-white/10 text-cyan-primary hover:border-cyan-primary/40'
+                                }`}
+                        >
+                            {isAnalyzing ? (
+                                <RotateCcw className="w-3 h-3 animate-spin" />
+                            ) : (
+                                <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            ASSISTANT CO-PILOT
+                        </button>
+
+                        <div className="h-4 w-[1px] bg-white/10 mx-1" />
+
                         <span className="text-[11px] text-text-muted">Baud Rate:</span>
                         <Select
                             value={baudRate.toString()}

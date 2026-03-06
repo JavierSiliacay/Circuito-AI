@@ -33,10 +33,11 @@ export default function MaintenanceMode({ children }: { children: React.ReactNod
         e.preventDefault();
         setError('');
 
-        if (
-            username === MAINTENANCE_CONFIG.auth.username &&
-            password === MAINTENANCE_CONFIG.auth.password
-        ) {
+        const user = MAINTENANCE_CONFIG.authorizedUsers.find(
+            u => u.username === username && u.password === password
+        );
+
+        if (user) {
             localStorage.setItem(MAINTENANCE_CONFIG.sessionKey, 'true');
             setIsBypassed(true);
         } else {
