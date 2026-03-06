@@ -154,11 +154,11 @@ export default function BottomPanel() {
                     <div className="ml-auto flex items-center gap-3 pr-2">
                         {/* THE NEW AI CO-PILOT BUTTON */}
                         <button
-                            onClick={analyzeDiagnostic}
+                            onClick={() => analyzeDiagnostic()}
                             disabled={isAnalyzing || serialOutput.length === 0}
                             className={`flex items-center gap-2 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg border transition-all active:scale-95 ${isAnalyzing
-                                    ? 'bg-cyan-primary/20 border-cyan-primary/50 text-cyan-primary'
-                                    : 'bg-gradient-to-r from-cyan-primary/10 to-blue-600/10 border-white/10 text-cyan-primary hover:border-cyan-primary/40'
+                                ? 'bg-cyan-primary/20 border-cyan-primary/50 text-cyan-primary'
+                                : 'bg-gradient-to-r from-cyan-primary/10 to-blue-600/10 border-white/10 text-cyan-primary hover:border-cyan-primary/40'
                                 }`}
                         >
                             {isAnalyzing ? (
