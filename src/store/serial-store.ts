@@ -69,6 +69,7 @@ interface SerialState {
     performFullScan: () => Promise<void>;
     startLivePolling: (deviceId: string) => void;
     stopLivePolling: () => void;
+    clearDiagnosticHistory: () => void;
 }
 
 export const useSerialStore = create<SerialState>((set, get) => ({
@@ -649,6 +650,17 @@ export const useSerialStore = create<SerialState>((set, get) => ({
     },
 
     clearOutput: () => set({ serialOutput: [] }),
+
+    clearDiagnosticHistory: () => set({
+        diagnosticHistory: [
+            {
+                id: 'welcome',
+                role: 'assistant',
+                content: "### System Ready\nLive telemetry link established.\n\nI am your **Automotive Diagnostic Specialist**. I can interpret high-speed CAN traffic, decode OBD2 PIDs, and help you reverse engineer vehicle protocols.\n\n**Common Commands:**\n- *What are these readings?*\n- *Explain CAN ID 0x7E8*\n- *Check for DTC patterns*",
+                timestamp: new Date(),
+            }
+        ]
+    }),
 
     setActiveDevice: (deviceId: string | null) => set({ activeDeviceId: deviceId }),
 }));
