@@ -70,20 +70,24 @@ export interface BluetoothConnection {
 // Common UUIDs for ELM327 / Serial-over-BLE
 const COMMON_SERIAL_SERVICES = [
     '0000ffe0-0000-1000-8000-00805f9b34fb', // Standard ELM327 / V-Link
+    '0000fff0-0000-1000-8000-00805f9b34fb', // Generic OBDII Alternate
+    '0000ff10-0000-1000-8000-00805f9b34fb', // Alternative Serial
+    '00001801-0000-1000-8000-00805f9b34fb', // Generic Attribute
     '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service (NUS)
-    0xFFE0,                                 // Short form
 ];
 
 const COMMON_CHAR_RX = [
     '0000ffe1-0000-1000-8000-00805f9b34fb',
+    '0000fff1-0000-1000-8000-00805f9b34fb',
+    '0000ff11-0000-1000-8000-00805f9b34fb',
     '6e400003-b5a3-f393-e0a9-e50e24dcca9e', // NUS RX
-    0xFFE1,
 ];
 
 const COMMON_CHAR_TX = [
-    '0000ffe1-0000-1000-8000-00805f9b34fb', // Often both use same UUID
+    '0000ffe1-0000-1000-8000-00805f9b34fb',
+    '0000fff2-0000-1000-8000-00805f9b34fb',
+    '0000ff12-0000-1000-8000-00805f9b34fb',
     '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // NUS TX
-    0xFFE1,
 ];
 
 export function isWebBluetoothSupported(): boolean {
@@ -129,22 +133,29 @@ export async function connectBLE(
     if (!server) throw new Error('GATT Server not available');
 
     // Discover Services
-    const services = await server.getPrimaryServices();
     let targetService: BluetoothRemoteGATTService | null = null;
 
-    // Find the first matching serial service
-    for (const service of services) {
-        if (COMMON_SERIAL_SERVICES.includes(service.uuid.toLowerCase())) {
-            targetService = service;
-            break;
+    try {
+        // Find the first matching serial service from known list
+        for (const serviceUuid of COMMON_SERIAL_SERVICES) {
+            try {
+                targetService = await server.getPrimaryService(serviceUuid);
+                if (targetService) break;
+            } catch (e) {
+                // Service not found, try next
+            }
         }
+
+        // Final fallback: list all and pick first non-standard
+        if (!targetService) {
+            const services = await server.getPrimaryServices();
+            targetService = services.find(s => !s.uuid.startsWith('000018')) || services[0];
+        }
+    } catch (err) {
+        console.error('[WebBluetooth] Service discovery failed:', err);
     }
 
-    if (!targetService && services.length > 0) {
-        targetService = services[0]; // Fallback to first available
-    }
-
-    if (!targetService) throw new Error('No compatible Serial service found on device');
+    if (!targetService) throw new Error('No compatible OBDII Data service found. Check if device is BLE protocol.');
 
     const characteristics = await targetService.getCharacteristics();
     let rxChar: BluetoothRemoteGATTCharacteristic | null = null;
