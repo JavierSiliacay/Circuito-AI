@@ -400,7 +400,7 @@ export default function DiagnosticPage() {
                                                             )}
 
                                                             <div className="prose prose-invert prose-sm max-w-none">
-                                                                {msg.role === 'assistant' && (msg.content === '' || msg.content === 'Γû«') && isAnalyzing ? (
+                                                                {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
                                                                     <div className="flex items-center gap-2 py-1">
                                                                         <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
                                                                         <div className="flex gap-1 items-baseline">
