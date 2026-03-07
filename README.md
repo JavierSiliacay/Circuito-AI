@@ -1,5 +1,7 @@
 # Circuito AI
 
+![Circuito AI Dashboard](docs/images/home-preview.png)
+
 ## Project Overview
 
 Circuito AI is a professional hardware development environment designed specifically for makers, embedded engineers, IoT developers, and automotive technicians. It provides a browser-based suite of tools that eliminates the need for complex local toolchain installations, allowing users to write, debug, analyze telemetry, and flash firmware directly from their web browser.
