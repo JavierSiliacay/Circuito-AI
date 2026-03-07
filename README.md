@@ -18,6 +18,11 @@ A dedicated environment for vehicle telemetry and hardware debugging. The Diagno
 
 
 ### Browser-Based Firmware Flashing (Neural Link)
+
+![Connecting to Neural Link](docs/images/neural-link-1.png)
+![Coding via Neural Link](docs/images/neural-link-2.png)
+![Sync Complete](docs/images/neural-link-3.png)
+
 Direct communication with your physical hardware using the Web Serial API. The "Neural Link" system allows you to compile and flash firmware to ESP32 and Arduino boards directly from the web interface, without any external plugins or desktop applications.
 
 ### IoT Monitoring & Live Telemetry Stream
