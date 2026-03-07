@@ -59,6 +59,14 @@ export default function DiagnosticPage() {
     const [trafficLoad, setTrafficLoad] = useState(0);
     const [inputValue, setInputValue] = useState('');
     const [isCopied, setIsCopied] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     useEffect(() => {
         init();
@@ -143,56 +151,62 @@ export default function DiagnosticPage() {
     }, []);
 
     return (
-        <div className="h-screen w-screen bg-[#020617] text-white flex flex-col font-sans overflow-hidden select-none">
-            {/* ≡ƒÆÄ BACKGROUND GRID EFFECT */}
+        <div className="h-[100dvh] w-full bg-[#020617] text-white flex flex-col font-sans overflow-hidden select-none">
+            {/* BACKGROUND GRID EFFECT */}
             <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
             <div className="fixed inset-0 pointer-events-none bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent" />
 
-            {/* ≡ƒ¢╕ TOP HUD BAR */}
-            <header className="h-16 border-b border-white/10 bg-[#0A0F1C]/80 backdrop-blur-2xl flex items-center px-6 gap-6 z-50 shadow-2xl">
-                <Link href="/" className="flex items-center gap-3 group transition-all">
-                    <CircuitoLogo className="w-9 h-9 transition-transform group-hover:scale-105" />
-                    <div className="hidden sm:block">
-                        <h1 className="text-sm font-black tracking-widest uppercase text-white">Diagnostic Station</h1>
-                        <p className="text-[10px] text-cyan-primary font-bold opacity-80 uppercase tracking-tighter">Automotive AI Specialist</p>
-                    </div>
-                </Link>
-
-                <div className="h-8 w-[1px] bg-white/10 mx-2 hidden sm:block" />
-
-                {/* Neural Link Status */}
-                <div className="hidden lg:flex items-center gap-3">
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${isBridgeConnected ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai' : 'bg-white/5 border-white/10 text-text-muted'}`}>
-                        <Zap className={`w-3.5 h-3.5 ${isBridgeConnected ? 'animate-pulse' : 'opacity-30'}`} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                            {isBridgeConnected ? `NEURAL LINK: ${localProjectPath?.split(/[\\/]/).pop()}` : 'NEURAL LINK OFFLINE'}
-                        </span>
-                    </div>
+            {/* TOP HUD BAR */}
+            <header className="min-h-16 py-3 lg:py-0 border-b border-white/10 bg-[#0A0F1C]/80 backdrop-blur-2xl flex flex-col lg:flex-row lg:items-center px-4 lg:px-6 gap-4 lg:gap-6 z-50 shadow-2xl shrink-0 overflow-y-auto lg:overflow-visible">
+                <div className="flex items-center justify-between w-full lg:w-auto">
+                    <Link href="/" className="flex items-center gap-3 group transition-all">
+                        <CircuitoLogo className="w-8 h-8 lg:w-9 lg:h-9 transition-transform group-hover:scale-105" />
+                        <div>
+                            <h1 className="text-[13px] lg:text-sm font-black tracking-widest uppercase text-white">Diagnostic Station</h1>
+                            <p className="text-[9px] lg:text-[10px] text-cyan-primary font-bold opacity-80 uppercase tracking-tighter">Automotive AI Specialist</p>
+                        </div>
+                    </Link>
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                    >
+                        <Sparkles className="w-4 h-4" />
+                    </button>
                 </div>
 
-                {/* Status Badges */}
-                <div className="flex items-center gap-4">
+                <div className="h-8 w-[1px] bg-white/10 mx-2 hidden lg:block" />
+
+                {/* Neural Link Status */}
+                <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-3 w-full lg:w-auto">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${isBridgeConnected ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai' : 'bg-white/5 border-white/10 text-text-muted'}`}>
+                        <Zap className={`w-3.5 h-3.5 ${isBridgeConnected ? 'animate-pulse' : 'opacity-30'}`} />
+                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[150px] lg:max-w-none">
+                            {isBridgeConnected ? `LINK: ${localProjectPath?.split(/[\\/]/).pop()}` : 'LINK OFFLINE'}
+                        </span>
+                    </div>
+
+                    {/* Status Badges */}
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeDevice ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted'}`}>
-                        <Usb className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                            {activeDevice ? `CONNECTED: ${activeDevice.name}` : 'NO HARDWARE DETECTED'}
+                        <Usb className="w-3.5 h-3.5 shrink-0" />
+                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[120px] lg:max-w-none">
+                            {activeDevice ? `COM: ${activeDevice.name}` : 'NO COM'}
                         </span>
                     </div>
 
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
                         <Activity className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Load: {trafficLoad}%</span>
+                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest">L: {trafficLoad}%</span>
                     </div>
                 </div>
 
                 {/* Center Controls */}
-                <div className="ml-auto flex items-center gap-3">
-                    <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">Serial Sync:</span>
+                <div className="w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto flex flex-wrap items-center gap-3">
+                    <span className="hidden lg:inline-block text-[10px] font-black text-text-muted uppercase tracking-widest">Serial Sync:</span>
                     <Select
                         value={baudRate.toString()}
                         onValueChange={(val) => setBaudRate(Number(val))}
                     >
-                        <SelectTrigger className="h-9 w-32 bg-white/5 border-white/10 text-[11px] font-bold rounded-xl hover:bg-white/10 transition-all">
+                        <SelectTrigger className="h-9 w-[110px] lg:w-32 bg-white/5 border-white/10 text-[11px] font-bold rounded-xl hover:bg-white/10 transition-all">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-[#0A0F1C] border-white/10">
@@ -207,24 +221,24 @@ export default function DiagnosticPage() {
                     {!activeDevice ? (
                         <button
                             onClick={handleConnect}
-                            className="h-10 px-5 rounded-xl bg-cyan-primary text-[#0A0F1C] font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-hover transition-all shadow-lg shadow-cyan-primary/20 active:scale-95"
+                            className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-cyan-primary text-[#0A0F1C] font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-cyan-hover transition-all shadow-lg shadow-cyan-primary/20 active:scale-95 whitespace-nowrap"
                         >
-                            <Zap className="w-4 h-4 fill-current" />
+                            <Zap className="w-4 h-4 fill-current shrink-0" />
                             Initialize Link
                         </button>
                     ) : (
                         <button
                             onClick={() => useSerialStore.getState().disconnectDevice(activeDevice.id)}
-                            className="h-10 px-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-red-500/20 transition-all active:scale-95"
+                            className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-red-500/20 transition-all active:scale-95 whitespace-nowrap"
                         >
-                            <LogOut className="w-4 h-4" />
+                            <LogOut className="w-4 h-4 shrink-0" />
                             Terminate
                         </button>
                     )}
 
                     <button
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                        className={`hidden lg:flex w-10 h-10 items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
                         title={isSidebarOpen ? "Hide Specialist" : "Show Specialist"}
                     >
                         <Sparkles className="w-4 h-4" />
@@ -232,9 +246,9 @@ export default function DiagnosticPage() {
                 </div>
             </header>
 
-            <main className="flex-1 flex overflow-hidden relative min-h-0">
-                {/* ≡ƒôƒ THE GIANT TERMINAL AREA */}
-                <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-[#020617] border-r border-white/5 shadow-inner relative">
+            <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative min-h-0">
+                {/* THE GIANT TERMINAL AREA */}
+                <div className={`flex-1 flex flex-col min-h-0 min-w-0 bg-[#020617] border-white/5 shadow-inner relative ${isSidebarOpen && isMobile ? 'hidden lg:flex' : 'flex'}`}>
                     <div className="h-10 border-b border-white/5 flex items-center px-4 justify-between bg-white/[0.02]">
                         <div className="flex items-center gap-2">
                             <TerminalIcon className="w-3.5 h-3.5 text-cyan-primary" />
@@ -329,22 +343,22 @@ export default function DiagnosticPage() {
                     </div>
                 </div>
 
-                {/* ≡ƒñû AI SPECIALIST PANEL (SIDEBAR) */}
+                {/* AI SPECIALIST PANEL (SIDEBAR) */}
                 <AnimatePresence>
                     {isSidebarOpen && (
                         <>
                             {/* Resize handle */}
                             <div
                                 onMouseDown={(e) => (window as any).startDiagnosticResizing(e)}
-                                className="w-1 cursor-col-resize bg-transparent hover:bg-cyan-primary/30 active:bg-cyan-primary/50 transition-colors shrink-0 z-30"
+                                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-cyan-primary/30 active:bg-cyan-primary/50 transition-colors shrink-0 z-30"
                             />
                             <motion.aside
-                                initial={{ width: 0, opacity: 0 }}
-                                animate={{ width: panelWidth, opacity: 1 }}
-                                exit={{ width: 0, opacity: 0 }}
+                                initial={{ flex: 0, opacity: 0 }}
+                                animate={{ flex: isMobile ? 1 : `0 0 ${panelWidth}px`, opacity: 1 }}
+                                exit={{ flex: 0, opacity: 0 }}
                                 transition={{ duration: 0.3, ease: 'easeOut' }}
-                                style={{ width: panelWidth }}
-                                className="shrink-0 flex flex-col min-h-0 h-full bg-[#0A0F1C] border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-20 relative overflow-hidden"
+                                style={{ width: isMobile ? '100%' : panelWidth }}
+                                className="flex flex-col min-h-0 h-full bg-[#0A0F1C] border-t lg:border-t-0 lg:border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-20 relative overflow-hidden"
                             >
                                 {/* Glassy Background Effect */}
                                 <div className="absolute inset-0 bg-gradient-to-b from-cyan-primary/5 to-transparent pointer-events-none opacity-50" />
