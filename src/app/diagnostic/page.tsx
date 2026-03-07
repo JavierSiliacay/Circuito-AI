@@ -193,436 +193,439 @@ export default function DiagnosticPage() {
     }, []);
 
     return (
-        <div className="h-[100dvh] w-full bg-[#020617] text-white flex flex-col font-sans overflow-hidden select-none">
-            {/* BACKGROUND GRID EFFECT */}
-            <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-            <div className="fixed inset-0 pointer-events-none bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent" />
+        <div className="h-[100dvh] w-full bg-[#020617] text-white flex flex-col font-sans overflow-hidden select-none print:bg-white print:h-auto print:overflow-visible print:block">
+            {/* NO-PRINT DASHBOARD WRAPPER */}
+            <div className="flex-1 flex flex-col min-h-0 print:hidden print-hidden-wrapper">
+                {/* BACKGROUND GRID EFFECT */}
+                <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+                <div className="fixed inset-0 pointer-events-none bg-gradient-to-b from-cyan-500/5 via-transparent to-transparent" />
 
-            {/* TOP HUD BAR */}
-            <header className="min-h-16 py-3 lg:py-0 border-b border-white/10 bg-[#0A0F1C]/80 backdrop-blur-2xl flex flex-col lg:flex-row lg:items-center px-4 lg:px-6 gap-4 lg:gap-6 z-50 shadow-2xl shrink-0 overflow-y-auto lg:overflow-visible">
-                <div className="flex items-center justify-between w-full lg:w-auto">
-                    <Link href="/" className="flex items-center gap-3 group transition-all">
-                        <CircuitoLogo className="w-8 h-8 lg:w-9 lg:h-9 transition-transform group-hover:scale-105" />
-                        <div>
-                            <h1 className="text-[13px] lg:text-sm font-black tracking-widest uppercase text-white">Diagnostic Station</h1>
-                            <p className="text-[9px] lg:text-[10px] text-cyan-primary font-bold opacity-80 uppercase tracking-tighter">Automotive AI Specialist</p>
+                {/* TOP HUD BAR */}
+                <header className="min-h-16 py-3 lg:py-0 border-b border-white/10 bg-[#0A0F1C]/80 backdrop-blur-2xl flex flex-col lg:flex-row lg:items-center px-4 lg:px-6 gap-4 lg:gap-6 z-50 shadow-2xl shrink-0 overflow-y-auto lg:overflow-visible">
+                    <div className="flex items-center justify-between w-full lg:w-auto">
+                        <Link href="/" className="flex items-center gap-3 group transition-all">
+                            <CircuitoLogo className="w-8 h-8 lg:w-9 lg:h-9 transition-transform group-hover:scale-105" />
+                            <div>
+                                <h1 className="text-[13px] lg:text-sm font-black tracking-widest uppercase text-white">Diagnostic Station</h1>
+                                <p className="text-[9px] lg:text-[10px] text-cyan-primary font-bold opacity-80 uppercase tracking-tighter">Automotive AI Specialist</p>
+                            </div>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                            <AnimatePresence>
+                                {connectionError && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        className="bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2"
+                                    >
+                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                        <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">{connectionError}</span>
+                                        <button onClick={() => setConnectionError(null)} className="ml-1 text-red-400/50 hover:text-red-400">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <button
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                            >
+                                <Sparkles className="w-4 h-4" />
+                            </button>
                         </div>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                        <AnimatePresence>
-                            {connectionError && (
-                                <motion.div
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className="bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2"
-                                >
-                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                    <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">{connectionError}</span>
-                                    <button onClick={() => setConnectionError(null)} className="ml-1 text-red-400/50 hover:text-red-400">
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </motion.div>
+                    </div>
+
+                    <div className="h-8 w-[1px] bg-white/10 mx-2 hidden lg:block" />
+
+                    {/* Neural Link Status */}
+                    <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-3 w-full lg:w-auto">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${isBridgeConnected ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai' : 'bg-white/5 border-white/10 text-text-muted'}`}>
+                            <Zap className={`w-3.5 h-3.5 ${isBridgeConnected ? 'animate-pulse' : 'opacity-30'}`} />
+                            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[150px] lg:max-w-none">
+                                {isBridgeConnected ? `LINK: ${localProjectPath?.split(/[\\/]/).pop()}` : 'LINK OFFLINE'}
+                            </span>
+                        </div>
+
+                        {/* Status Badges */}
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeDevice ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted'}`}>
+                            {activeDevice?.type === 'bluetooth' ? (
+                                <Bluetooth className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                                <Usb className="w-3.5 h-3.5 shrink-0" />
                             )}
-                        </AnimatePresence>
+                            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[120px] lg:max-w-none">
+                                {activeDevice ? `${activeDevice.type === 'bluetooth' ? 'BLE' : 'COM'}: ${activeDevice.name}` : 'OFFLINE'}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                            <Activity className="w-3.5 h-3.5" />
+                            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest">L: {trafficLoad}%</span>
+                        </div>
+                    </div>
+
+                    {/* Center Controls */}
+                    <div className="w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto flex flex-wrap items-center gap-3">
+                        <span className="hidden lg:inline-block text-[10px] font-black text-text-muted uppercase tracking-widest">Serial Sync:</span>
+                        <Select
+                            value={baudRate.toString()}
+                            onValueChange={(val) => setBaudRate(Number(val))}
+                        >
+                            <SelectTrigger className="h-9 w-[110px] lg:w-32 bg-white/5 border-white/10 text-[11px] font-bold rounded-xl hover:bg-white/10 transition-all">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#0A0F1C] border-white/10">
+                                {baudRates.map((rate) => (
+                                    <SelectItem key={rate} value={rate.toString()} className="text-[11px] focus:bg-cyan-primary/20">
+                                        {rate} Baud
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {!activeDevice ? (
+                            <button
+                                onClick={handleConnect}
+                                className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-cyan-primary text-[#0A0F1C] font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-cyan-hover transition-all shadow-lg shadow-cyan-primary/20 active:scale-95 whitespace-nowrap"
+                            >
+                                <Zap className="w-4 h-4 fill-current shrink-0" />
+                                Initialize Link
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => useSerialStore.getState().disconnectDevice(activeDevice.id)}
+                                className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-red-500/20 transition-all active:scale-95 whitespace-nowrap"
+                            >
+                                <LogOut className="w-4 h-4 shrink-0" />
+                                Terminate
+                            </button>
+                        )}
+
                         <button
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                            className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                            className={`hidden lg:flex w-10 h-10 items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                            title={isSidebarOpen ? "Hide Specialist" : "Show Specialist"}
                         >
                             <Sparkles className="w-4 h-4" />
                         </button>
                     </div>
-                </div>
+                </header>
 
-                <div className="h-8 w-[1px] bg-white/10 mx-2 hidden lg:block" />
-
-                {/* Neural Link Status */}
-                <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-3 w-full lg:w-auto">
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${isBridgeConnected ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai' : 'bg-white/5 border-white/10 text-text-muted'}`}>
-                        <Zap className={`w-3.5 h-3.5 ${isBridgeConnected ? 'animate-pulse' : 'opacity-30'}`} />
-                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[150px] lg:max-w-none">
-                            {isBridgeConnected ? `LINK: ${localProjectPath?.split(/[\\/]/).pop()}` : 'LINK OFFLINE'}
-                        </span>
-                    </div>
-
-                    {/* Status Badges */}
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeDevice ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted'}`}>
-                        {activeDevice?.type === 'bluetooth' ? (
-                            <Bluetooth className="w-3.5 h-3.5 shrink-0" />
-                        ) : (
-                            <Usb className="w-3.5 h-3.5 shrink-0" />
-                        )}
-                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[120px] lg:max-w-none">
-                            {activeDevice ? `${activeDevice.type === 'bluetooth' ? 'BLE' : 'COM'}: ${activeDevice.name}` : 'OFFLINE'}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
-                        <Activity className="w-3.5 h-3.5" />
-                        <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest">L: {trafficLoad}%</span>
-                    </div>
-                </div>
-
-                {/* Center Controls */}
-                <div className="w-full lg:w-auto mt-2 lg:mt-0 lg:ml-auto flex flex-wrap items-center gap-3">
-                    <span className="hidden lg:inline-block text-[10px] font-black text-text-muted uppercase tracking-widest">Serial Sync:</span>
-                    <Select
-                        value={baudRate.toString()}
-                        onValueChange={(val) => setBaudRate(Number(val))}
-                    >
-                        <SelectTrigger className="h-9 w-[110px] lg:w-32 bg-white/5 border-white/10 text-[11px] font-bold rounded-xl hover:bg-white/10 transition-all">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0A0F1C] border-white/10">
-                            {baudRates.map((rate) => (
-                                <SelectItem key={rate} value={rate.toString()} className="text-[11px] focus:bg-cyan-primary/20">
-                                    {rate} Baud
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    {!activeDevice ? (
-                        <button
-                            onClick={handleConnect}
-                            className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-cyan-primary text-[#0A0F1C] font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-cyan-hover transition-all shadow-lg shadow-cyan-primary/20 active:scale-95 whitespace-nowrap"
-                        >
-                            <Zap className="w-4 h-4 fill-current shrink-0" />
-                            Initialize Link
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => useSerialStore.getState().disconnectDevice(activeDevice.id)}
-                            className="flex-1 lg:flex-none h-10 px-4 lg:px-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] lg:text-[11px] uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-red-500/20 transition-all active:scale-95 whitespace-nowrap"
-                        >
-                            <LogOut className="w-4 h-4 shrink-0" />
-                            Terminate
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className={`hidden lg:flex w-10 h-10 items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
-                        title={isSidebarOpen ? "Hide Specialist" : "Show Specialist"}
-                    >
-                        <Sparkles className="w-4 h-4" />
-                    </button>
-                </div>
-            </header>
-
-            <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative min-h-0">
-                {/* THE GIANT TERMINAL AREA */}
-                <div className={`flex-1 flex flex-col min-h-0 min-w-0 bg-[#020617] border-white/5 shadow-inner relative ${isSidebarOpen && isMobile ? 'hidden lg:flex' : 'flex'}`}>
-                    <div className="h-10 border-b border-white/5 flex items-center px-4 justify-between bg-white/[0.02]">
-                        <div className="flex items-center gap-2">
-                            <TerminalIcon className="w-3.5 h-3.5 text-cyan-primary" />
-                            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Telemetry Stream</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => performFullScan()}
-                                disabled={isAnalyzing || isScanning || serialOutput.length === 0}
-                                className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all disabled:opacity-30"
-                            >
-                                {isScanning ? (
-                                    <RotateCcw className="w-3 h-3 animate-spin" />
-                                ) : (
-                                    <Sparkles className="w-3 h-3" />
-                                )}
-                                {isScanning ? 'Polling ECU...' : 'Auto-Scan vehicle'}
-                            </button>
-                            <button
-                                onClick={handleCopy}
-                                disabled={serialOutput.length === 0}
-                                className="p-1.5 text-text-muted hover:text-cyan-primary transition-colors disabled:opacity-30"
-                                title="Copy Telemetry"
-                            >
-                                {isCopied ? <Check className="w-4 h-4 text-green-success" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                            <button
-                                onClick={clearOutput}
-                                className="p-1.5 text-text-muted hover:text-red-400 transition-colors"
-                                title="Purge Buffer"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* LIVE TELEMETRY DASHBOARD */}
-                    <AnimatePresence>
-                        {activeDevice && (
-                            <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                className="border-b border-white/5 bg-gradient-to-r from-cyan-500/[0.03] to-transparent overflow-hidden"
-                            >
-                                <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {Object.entries(liveReadings).length === 0 ? (
-                                        <div className="col-span-full py-2 flex flex-col items-center justify-center gap-2 border border-dashed border-white/5 rounded-xl opacity-40">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-ping" />
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Listening for ECU Data...</span>
-                                        </div>
+                <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative min-h-0">
+                    {/* THE GIANT TERMINAL AREA */}
+                    <div className={`flex-1 flex flex-col min-h-0 min-w-0 bg-[#020617] border-white/5 shadow-inner relative ${isSidebarOpen && isMobile ? 'hidden lg:flex' : 'flex'}`}>
+                        <div className="h-10 border-b border-white/5 flex items-center px-4 justify-between bg-white/[0.02]">
+                            <div className="flex items-center gap-2">
+                                <TerminalIcon className="w-3.5 h-3.5 text-cyan-primary" />
+                                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Telemetry Stream</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => performFullScan()}
+                                    disabled={isAnalyzing || isScanning || serialOutput.length === 0}
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all disabled:opacity-30"
+                                >
+                                    {isScanning ? (
+                                        <RotateCcw className="w-3 h-3 animate-spin" />
                                     ) : (
-                                        Object.entries(liveReadings).map(([key, data]) => (
-                                            <motion.div
-                                                key={key}
-                                                layout
-                                                initial={{ scale: 0.9, opacity: 0 }}
-                                                animate={{ scale: 1, opacity: 1 }}
-                                                className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-1 hover:bg-white/10 transition-all group"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-cyan-primary transition-colors">{data.label}</span>
-                                                    <Activity className="w-3 h-3 text-cyan-primary/50" />
-                                                </div>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-xl font-black text-white tracking-tighter tabular-nums">{data.value}</span>
-                                                    <span className="text-[10px] font-bold text-text-muted uppercase">{data.unit}</span>
-                                                </div>
-                                                <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-                                                    <motion.div
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: '40%' }} // Static visual for now
-                                                        className="h-full bg-cyan-primary/50 shadow-[0_0_8px_rgba(34,211,238,0.5)]"
-                                                    />
-                                                </div>
-                                            </motion.div>
-                                        ))
+                                        <Sparkles className="w-3 h-3" />
                                     )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    <ScrollArea className="flex-1 font-mono min-h-0">
-                        <div className="p-6 space-y-1">
-                            {!activeDevice ? (
-                                <div className="h-full flex flex-col items-center justify-center py-40 text-center gap-6">
-                                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group animate-pulse">
-                                        <Cpu className="w-10 h-10 text-white/20 group-hover:text-cyan-primary transition-colors" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-xl font-black text-white uppercase tracking-tighter">Hardware Sync Required</p>
-                                        <p className="text-sm text-text-muted max-w-md mx-auto">Establish a serial connection to start streaming vehicle telemetry and activate the AI Diagnostic Specialist.</p>
-                                    </div>
-                                    <button
-                                        onClick={handleConnect}
-                                        className="px-8 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl shadow-white/5 transform hover:scale-105"
-                                    >
-                                        Connect Hardware Now
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="flex items-center gap-3 text-[10px] font-black text-cyan-primary mb-4 opacity-100 select-none">
-                                        <div className={`w-1.5 h-1.5 rounded-full bg-cyan-primary ${isScanning ? 'animate-ping' : ''}`} />
-                                        {isScanning ? 'EXECUTING OBDII SYSTEM SCAN - POLLING SERVICES 01/03/07/09' : `STREAMING AT ${activeDevice.baudRate} BAUD / PROTOCOL: ISO 15765-4 (CAN)`}
-                                    </div>
-                                    <div className="select-text">
-                                        {serialOutput.slice(-150).map((line, i) => (
-                                            <div key={i} className="text-[13px] leading-relaxed group flex gap-4">
-                                                <span className="opacity-20 text-[10px] w-12 font-bold tabular-nums group-hover:opacity-100 transition-opacity select-none">{(i + 1).toString().padStart(4, '0')}</span>
-                                                <span className={`${line.includes('ERR') || line.includes('ΓÜá∩╕Å') ? 'text-red-400 font-bold' : 'text-cyan-primary/90'}`}>
-                                                    {line}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div ref={terminalEndRef} />
-                                </>
-                            )}
+                                    {isScanning ? 'Polling ECU...' : 'Auto-Scan vehicle'}
+                                </button>
+                                <button
+                                    onClick={handleCopy}
+                                    disabled={serialOutput.length === 0}
+                                    className="p-1.5 text-text-muted hover:text-cyan-primary transition-colors disabled:opacity-30"
+                                    title="Copy Telemetry"
+                                >
+                                    {isCopied ? <Check className="w-4 h-4 text-green-success" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                                <button
+                                    onClick={clearOutput}
+                                    className="p-1.5 text-text-muted hover:text-red-400 transition-colors"
+                                    title="Purge Buffer"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-                    </ScrollArea>
 
-                    {/* Terminal Footer Info */}
-                    <div className="h-8 border-t border-white/5 bg-white/[0.02] flex items-center px-4 gap-6">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary" />
-                            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">RX Link: Active</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">TX Link: Ready</span>
-                        </div>
-                        <div className="ml-auto text-[9px] font-black text-text-muted uppercase tracking-widest">
-                            Buffer: {serialOutput.length} / 800 Lines
-                        </div>
-                    </div>
-                </div>
-
-                {/* AI SPECIALIST PANEL (SIDEBAR) */}
-                <AnimatePresence>
-                    {isSidebarOpen && (
-                        <>
-                            {/* Resize handle */}
-                            <div
-                                onMouseDown={(e) => (window as any).startDiagnosticResizing(e)}
-                                className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-cyan-primary/30 active:bg-cyan-primary/50 transition-colors shrink-0 z-30"
-                            />
-                            <motion.aside
-                                initial={{ flex: 0, opacity: 0 }}
-                                animate={{ flex: isMobile ? 1 : `0 0 ${panelWidth}px`, opacity: 1 }}
-                                exit={{ flex: 0, opacity: 0 }}
-                                transition={{ duration: 0.3, ease: 'easeOut' }}
-                                style={{ width: isMobile ? '100%' : panelWidth }}
-                                className="flex flex-col min-h-0 h-full bg-[#0A0F1C] border-t lg:border-t-0 lg:border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-20 relative overflow-hidden"
-                            >
-                                {/* Glassy Background Effect */}
-                                <div className="absolute inset-0 bg-gradient-to-b from-cyan-primary/5 to-transparent pointer-events-none opacity-50" />
-
-                                <div className="h-14 border-b border-white/5 flex items-center px-6 justify-between bg-white/[0.02] relative z-10">
-                                    <div className="flex items-center gap-2">
-                                        <div className="relative">
-                                            <Sparkles className="w-4 h-4 text-cyan-primary" />
-                                            <div className="absolute inset-0 bg-cyan-primary blur-md opacity-30" />
-                                        </div>
-                                        <h3 className="text-[11px] font-black text-white uppercase tracking-widest">Circuito Diagnostic</h3>
-                                    </div>
-                                    {isAnalyzing && (
-                                        <div className="flex gap-1 items-baseline">
-                                            <span className="text-[9px] font-black text-cyan-primary/60 uppercase tracking-tighter mr-2">Analyzing</span>
-                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <ScrollArea className="flex-1 relative z-10 min-h-0">
-                                    <div className="p-6 space-y-8">
-                                        {diagnosticHistory.length === 0 ? (
-                                            <div className="py-20 text-center space-y-6 opacity-40">
-                                                <div className="w-20 h-20 mx-auto rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                                                    <Sparkles className="w-10 h-10 text-white/50" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <p className="text-sm font-black text-white uppercase tracking-widest leading-none">Diagnostic Link Offline</p>
-                                                    <p className="text-[11px] text-text-muted max-w-[220px] mx-auto italic">Waiting for telemetry session to initiate AI Copilot...</p>
-                                                </div>
+                        {/* LIVE TELEMETRY DASHBOARD */}
+                        <AnimatePresence>
+                            {activeDevice && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    className="border-b border-white/5 bg-gradient-to-r from-cyan-500/[0.03] to-transparent overflow-hidden"
+                                >
+                                    <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {Object.entries(liveReadings).length === 0 ? (
+                                            <div className="col-span-full py-2 flex flex-col items-center justify-center gap-2 border border-dashed border-white/5 rounded-xl opacity-40">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-ping" />
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Listening for ECU Data...</span>
                                             </div>
                                         ) : (
-                                            <AnimatePresence initial={false} mode="popLayout">
-                                                {diagnosticHistory.map((msg, idx) => (
-                                                    <motion.div
-                                                        key={msg.id}
-                                                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                        className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
-                                                    >
-                                                        <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
-                                                            ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
-                                                            : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
-                                                            }`}>
-
-                                                            {msg.role === 'assistant' && (
-                                                                <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
-                                                                    <CircuitoLogo className="w-10 h-10" />
-                                                                </div>
-                                                            )}
-
-                                                            <div className="prose prose-invert prose-sm max-w-none">
-                                                                {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
-                                                                    <div className="flex items-center gap-2 py-1">
-                                                                        <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
-                                                                        <div className="flex gap-1 items-baseline">
-                                                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                                                            <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    msg.content.split('\n').map((line, i) => {
-                                                                        if (line.startsWith('###')) {
-                                                                            return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
-                                                                        }
-                                                                        if (line.startsWith('*')) {
-                                                                            return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
-                                                                        }
-                                                                        return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
-                                                                            {line.replace(/^- /, '')}
-                                                                        </p>;
-                                                                    })
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                            {msg.role === 'assistant' && (
-                                                                <button
-                                                                    onClick={() => setShowReport(true)}
-                                                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
-                                                                >
-                                                                    <Printer className="w-2.5 h-2.5" />
-                                                                    Full Report
-                                                                </button>
-                                                            )}
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                                                                {msg.role === 'user' ? 'Technician' : 'Specialist'}
-                                                            </span>
-                                                            <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                            <span className="text-[9px] font-bold text-text-muted tabular-nums">
-                                                                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                                            </span>
-                                                        </div>
-                                                    </motion.div>
-                                                ))}
-                                            </AnimatePresence>
+                                            Object.entries(liveReadings).map(([key, data]) => (
+                                                <motion.div
+                                                    key={key}
+                                                    layout
+                                                    initial={{ scale: 0.9, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-1 hover:bg-white/10 transition-all group"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-cyan-primary transition-colors">{data.label}</span>
+                                                        <Activity className="w-3 h-3 text-cyan-primary/50" />
+                                                    </div>
+                                                    <div className="flex items-baseline gap-1">
+                                                        <span className="text-xl font-black text-white tracking-tighter tabular-nums">{data.value}</span>
+                                                        <span className="text-[10px] font-bold text-text-muted uppercase">{data.unit}</span>
+                                                    </div>
+                                                    <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
+                                                        <motion.div
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: '40%' }} // Static visual for now
+                                                            className="h-full bg-cyan-primary/50 shadow-[0_0_8px_rgba(34,211,238,0.5)]"
+                                                        />
+                                                    </div>
+                                                </motion.div>
+                                            ))
                                         )}
-                                        <div ref={chatEndRef} className="h-8" />
                                     </div>
-                                </ScrollArea>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                                <div className="p-6 border-t border-white/10 bg-[#0A0F1C] relative z-20 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
-                                    <form onSubmit={handleSendMessage} className="relative mb-4 group">
-                                        <div className="absolute inset-0 bg-cyan-primary/5 blur-xl group-focus-within:bg-cyan-primary/10 transition-colors pointer-events-none" />
-                                        <input
-                                            value={inputValue}
-                                            onChange={(e) => setInputValue(e.target.value)}
-                                            placeholder="Consult Specialist..."
-                                            className="w-full bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 text-xs text-white placeholder:text-text-muted focus:border-cyan-primary/50 focus:ring-1 focus:ring-cyan-primary/20 focus:outline-none transition-all pr-14 relative z-10 shadow-inner"
-                                        />
+                        <ScrollArea className="flex-1 font-mono min-h-0">
+                            <div className="p-6 space-y-1">
+                                {!activeDevice ? (
+                                    <div className="h-full flex flex-col items-center justify-center py-40 text-center gap-6">
+                                        <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group animate-pulse">
+                                            <Cpu className="w-10 h-10 text-white/20 group-hover:text-cyan-primary transition-colors" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-xl font-black text-white uppercase tracking-tighter">Hardware Sync Required</p>
+                                            <p className="text-sm text-text-muted max-w-md mx-auto">Establish a serial connection to start streaming vehicle telemetry and activate the AI Diagnostic Specialist.</p>
+                                        </div>
                                         <button
-                                            type="submit"
-                                            disabled={!inputValue.trim() || isAnalyzing}
-                                            className="absolute right-2.5 top-2.5 w-9 h-9 rounded-xl bg-cyan-primary text-[#0A0F1C] flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale z-20 shadow-lg shadow-cyan-primary/20"
+                                            onClick={handleConnect}
+                                            className="px-8 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl shadow-white/5 transform hover:scale-105"
                                         >
-                                            <Send className="w-4 h-4 fill-current" />
+                                            Connect Hardware Now
                                         </button>
-                                    </form>
-
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex gap-4">
-                                            <button
-                                                onClick={() => clearDiagnosticHistory()}
-                                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-red-400 transition-colors"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                                Clear History
-                                            </button>
-                                            <button
-                                                onClick={() => setShowReport(true)}
-                                                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-cyan-primary hover:text-white transition-colors"
-                                            >
-                                                <Printer className="w-3.5 h-3.5" />
-                                                Generate PDF Report
-                                            </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-3 text-[10px] font-black text-cyan-primary mb-4 opacity-100 select-none">
+                                            <div className={`w-1.5 h-1.5 rounded-full bg-cyan-primary ${isScanning ? 'animate-ping' : ''}`} />
+                                            {isScanning ? 'EXECUTING OBDII SYSTEM SCAN - POLLING SERVICES 01/03/07/09' : `STREAMING AT ${activeDevice.baudRate} BAUD / PROTOCOL: ISO 15765-4 (CAN)`}
                                         </div>
-                                        <div className="text-[9px] font-black uppercase tracking-widest text-cyan-primary/40 animate-pulse flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary" />
-                                            AI Copilot Ready
+                                        <div className="select-text">
+                                            {serialOutput.slice(-150).map((line, i) => (
+                                                <div key={i} className="text-[13px] leading-relaxed group flex gap-4">
+                                                    <span className="opacity-20 text-[10px] w-12 font-bold tabular-nums group-hover:opacity-100 transition-opacity select-none">{(i + 1).toString().padStart(4, '0')}</span>
+                                                    <span className={`${line.includes('ERR') || line.includes('ΓÜá∩╕Å') ? 'text-red-400 font-bold' : 'text-cyan-primary/90'}`}>
+                                                        {line}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div ref={terminalEndRef} />
+                                    </>
+                                )}
+                            </div>
+                        </ScrollArea>
+
+                        {/* Terminal Footer Info */}
+                        <div className="h-8 border-t border-white/5 bg-white/[0.02] flex items-center px-4 gap-6">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary" />
+                                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">RX Link: Active</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">TX Link: Ready</span>
+                            </div>
+                            <div className="ml-auto text-[9px] font-black text-text-muted uppercase tracking-widest">
+                                Buffer: {serialOutput.length} / 800 Lines
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* AI SPECIALIST PANEL (SIDEBAR) */}
+                    <AnimatePresence>
+                        {isSidebarOpen && (
+                            <>
+                                {/* Resize handle */}
+                                <div
+                                    onMouseDown={(e) => (window as any).startDiagnosticResizing(e)}
+                                    className="hidden lg:block w-1 cursor-col-resize bg-transparent hover:bg-cyan-primary/30 active:bg-cyan-primary/50 transition-colors shrink-0 z-30"
+                                />
+                                <motion.aside
+                                    initial={{ flex: 0, opacity: 0 }}
+                                    animate={{ flex: isMobile ? 1 : `0 0 ${panelWidth}px`, opacity: 1 }}
+                                    exit={{ flex: 0, opacity: 0 }}
+                                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                                    style={{ width: isMobile ? '100%' : panelWidth }}
+                                    className="flex flex-col min-h-0 h-full bg-[#0A0F1C] border-t lg:border-t-0 lg:border-l border-white/10 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-20 relative overflow-hidden"
+                                >
+                                    {/* Glassy Background Effect */}
+                                    <div className="absolute inset-0 bg-gradient-to-b from-cyan-primary/5 to-transparent pointer-events-none opacity-50" />
+
+                                    <div className="h-14 border-b border-white/5 flex items-center px-6 justify-between bg-white/[0.02] relative z-10">
+                                        <div className="flex items-center gap-2">
+                                            <div className="relative">
+                                                <Sparkles className="w-4 h-4 text-cyan-primary" />
+                                                <div className="absolute inset-0 bg-cyan-primary blur-md opacity-30" />
+                                            </div>
+                                            <h3 className="text-[11px] font-black text-white uppercase tracking-widest">Circuito Diagnostic</h3>
+                                        </div>
+                                        {isAnalyzing && (
+                                            <div className="flex gap-1 items-baseline">
+                                                <span className="text-[9px] font-black text-cyan-primary/60 uppercase tracking-tighter mr-2">Analyzing</span>
+                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <ScrollArea className="flex-1 relative z-10 min-h-0">
+                                        <div className="p-6 space-y-8">
+                                            {diagnosticHistory.length === 0 ? (
+                                                <div className="py-20 text-center space-y-6 opacity-40">
+                                                    <div className="w-20 h-20 mx-auto rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                                                        <Sparkles className="w-10 h-10 text-white/50" />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <p className="text-sm font-black text-white uppercase tracking-widest leading-none">Diagnostic Link Offline</p>
+                                                        <p className="text-[11px] text-text-muted max-w-[220px] mx-auto italic">Waiting for telemetry session to initiate AI Copilot...</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <AnimatePresence initial={false} mode="popLayout">
+                                                    {diagnosticHistory.map((msg, idx) => (
+                                                        <motion.div
+                                                            key={msg.id}
+                                                            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
+                                                        >
+                                                            <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
+                                                                ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
+                                                                : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
+                                                                }`}>
+
+                                                                {msg.role === 'assistant' && (
+                                                                    <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
+                                                                        <CircuitoLogo className="w-10 h-10" />
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="prose prose-invert prose-sm max-w-none">
+                                                                    {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
+                                                                        <div className="flex items-center gap-2 py-1">
+                                                                            <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
+                                                                            <div className="flex gap-1 items-baseline">
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        msg.content.split('\n').map((line, i) => {
+                                                                            if (line.startsWith('###')) {
+                                                                                return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
+                                                                            }
+                                                                            if (line.startsWith('*')) {
+                                                                                return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
+                                                                            }
+                                                                            return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
+                                                                                {line.replace(/^- /, '')}
+                                                                            </p>;
+                                                                        })
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                                {msg.role === 'assistant' && (
+                                                                    <button
+                                                                        onClick={() => setShowReport(true)}
+                                                                        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
+                                                                    >
+                                                                        <Printer className="w-2.5 h-2.5" />
+                                                                        Full Report
+                                                                    </button>
+                                                                )}
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                                                                    {msg.role === 'user' ? 'Technician' : 'Specialist'}
+                                                                </span>
+                                                                <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                                <span className="text-[9px] font-bold text-text-muted tabular-nums">
+                                                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
+                                                </AnimatePresence>
+                                            )}
+                                            <div ref={chatEndRef} className="h-8" />
+                                        </div>
+                                    </ScrollArea>
+
+                                    <div className="p-6 border-t border-white/10 bg-[#0A0F1C] relative z-20 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+                                        <form onSubmit={handleSendMessage} className="relative mb-4 group">
+                                            <div className="absolute inset-0 bg-cyan-primary/5 blur-xl group-focus-within:bg-cyan-primary/10 transition-colors pointer-events-none" />
+                                            <input
+                                                value={inputValue}
+                                                onChange={(e) => setInputValue(e.target.value)}
+                                                placeholder="Consult Specialist..."
+                                                className="w-full bg-[#020617] border border-white/10 rounded-2xl px-5 py-4 text-xs text-white placeholder:text-text-muted focus:border-cyan-primary/50 focus:ring-1 focus:ring-cyan-primary/20 focus:outline-none transition-all pr-14 relative z-10 shadow-inner"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={!inputValue.trim() || isAnalyzing}
+                                                className="absolute right-2.5 top-2.5 w-9 h-9 rounded-xl bg-cyan-primary text-[#0A0F1C] flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale z-20 shadow-lg shadow-cyan-primary/20"
+                                            >
+                                                <Send className="w-4 h-4 fill-current" />
+                                            </button>
+                                        </form>
+
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex gap-4">
+                                                <button
+                                                    onClick={() => clearDiagnosticHistory()}
+                                                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-red-400 transition-colors"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                    Clear History
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowReport(true)}
+                                                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-cyan-primary hover:text-white transition-colors"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5" />
+                                                    Generate PDF Report
+                                                </button>
+                                            </div>
+                                            <div className="text-[9px] font-black uppercase tracking-widest text-cyan-primary/40 animate-pulse flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary" />
+                                                AI Copilot Ready
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </motion.aside>
-                        </>
-                    )}
-                </AnimatePresence>
-            </main>
+                                </motion.aside>
+                            </>
+                        )}
+                    </AnimatePresence>
+                </main>
+            </div>
 
             {/* REPORT MODAL */}
             <AnimatePresence>
                 {showReport && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 lg:p-4 overflow-auto bg-black/90 backdrop-blur-xl print:bg-white print:p-0 print:block print:static print-report-root">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 lg:p-4 overflow-auto bg-black/90 backdrop-blur-xl print:bg-white print:p-0 print:static print:block print:!h-auto print:!overflow-visible print-report-root">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -634,7 +637,7 @@ export default function DiagnosticPage() {
                             initial={{ opacity: 0, scale: 0.95, y: 30 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 30 }}
-                            className="bg-white text-slate-900 w-full max-w-4xl min-h-screen lg:min-h-0 lg:max-h-[95vh] rounded-none lg:rounded-[40px] overflow-visible shadow-[0_0_100px_rgba(34,211,238,0.2)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none print:w-full print:block print:bg-white print:!h-auto print:!min-h-0"
+                            className="bg-white text-slate-900 w-full max-w-4xl min-h-screen lg:min-h-0 lg:max-h-[95vh] rounded-none lg:rounded-[40px] overflow-visible shadow-[0_0_100px_rgba(34,211,238,0.2)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none print:w-full print:block print:bg-white print:!h-auto print:!min-h-0 print:!relative print:!static"
                         >
                             {/* Actions Header - HIDDEN ON PRINT */}
                             <div className="p-6 lg:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 backdrop-blur-md sticky top-0 z-20 print:hidden shrink-0">
@@ -667,41 +670,54 @@ export default function DiagnosticPage() {
                             {/* Report Body - Optimized for Multi-page Print */}
                             <div className="flex-1 overflow-y-auto lg:p-12 font-sans print:overflow-visible print:p-0 print:block">
                                 <style jsx global>{`
-                                    @media print {
-                                        /* Hide everything else */
-                                        body > *:not(.print-report-root) { display: none !important; }
-                                        
                                         /* Global reset for print to ensure height doesn't get capped */
                                         html, body {
                                             height: auto !important;
                                             overflow: visible !important;
                                             background: white !important;
-                                        }
-
-                                        /* Force all parents to be visible and flowable */
-                                        .print-report-root, 
-                                        .print-report-root *, 
-                                        #__next, 
-                                        [data-framer-portal-id] {
-                                            overflow: visible !important;
-                                            height: auto !important;
-                                            position: static !important;
-                                        }
-
-                                        .print-content { 
-                                            position: relative !important;
-                                            width: 100% !important;
-                                            height: auto !important;
-                                            overflow: visible !important;
-                                            display: block !important;
-                                            padding: 0 !important;
+                                            -webkit-print-color-adjust: exact !important;
+                                            print-color-adjust: exact !important;
                                             margin: 0 !important;
+                                            padding: 0 !important;
+                                        }
+
+                                        /* Hide the dashboard wrapper manually if tailwind failed */
+                                        .print-hidden-wrapper {
+                                            display: none !important;
+                                        }
+
+                                        /* Force report to be static for multi-page flow */
+                                        .print-report-root {
+                                            position: static !important;
+                                            display: block !important;
+                                            height: auto !important;
+                                            min-height: 0 !important;
+                                            overflow: visible !important;
+                                            background: white !important;
+                                            visibility: visible !important;
+                                            width: 100% !important;
+                                        }
+
+                                        .print-report-root *, 
+                                        .print-report-root div,
+                                        .print-content,
+                                        .print-content * {
+                                            visibility: visible !important;
+                                            position: relative !important;
+                                            display: block !important;
+                                            height: auto !important;
+                                            overflow: visible !important;
+                                            background: transparent !important;
+                                        }
+
+                                        /* Specific reset for the modal content div */
+                                        .print-content {
+                                            position: static !important;
+                                            width: 100% !important;
+                                            margin: 0 !important;
+                                            padding: 0 !important;
                                             background: white !important;
                                         }
-
-                                        /* Break on findings if they are too long */
-                                        .avoid-break { break-inside: avoid; page-break-inside: avoid; }
-                                        .page-break { break-before: always; page-break-before: always; }
                                         
                                         @page { 
                                             size: auto; 
