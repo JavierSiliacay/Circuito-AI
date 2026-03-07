@@ -20,7 +20,7 @@ import {
     disconnectBLE,
     BluetoothConnection
 } from '@/lib/web-bluetooth';
-import { OBD_SERVICES, COMMON_PIDS } from '@/lib/obd-utils';
+import { OBD_SERVICES, COMMON_PIDS, decodeOBDResponse } from '@/lib/obd-utils';
 import { AIMessage } from './ide-store';
 
 export interface ConnectedDevice {
@@ -64,8 +64,11 @@ interface SerialState {
     diagnosticInsights: string[];
     isAnalyzing: boolean;
     isScanning: boolean;
+    liveReadings: Record<string, { value: number | string; unit: string; label: string }>;
     analyzeDiagnostic: (customMessage?: string) => Promise<void>;
     performFullScan: () => Promise<void>;
+    startLivePolling: (deviceId: string) => void;
+    stopLivePolling: () => void;
 }
 
 export const useSerialStore = create<SerialState>((set, get) => ({
@@ -86,6 +89,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
     diagnosticInsights: [],
     isAnalyzing: false,
     isScanning: false,
+    liveReadings: {},
 
     performFullScan: async () => {
         const state = get();
@@ -129,6 +133,49 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             log('Scan Interrupted: ' + (err instanceof Error ? err.message : String(err)));
         } finally {
             set({ isScanning: false });
+        }
+    },
+
+    livePollingInterval: null as any,
+
+    startLivePolling: (deviceId: string) => {
+        const state = get();
+        if ((state as any).livePollingInterval) return;
+
+        console.log('[SerialStore] Starting Live Telemetry Polling...');
+
+        const poll = async () => {
+            const current = get();
+            const device = current.devices.find(d => d.id === deviceId);
+            if (!device || device.status !== 'reading') {
+                get().stopLivePolling();
+                return;
+            }
+
+            try {
+                // Background poll common PIDs
+                await current.sendData(deviceId, '010C\r'); // RPM
+                await new Promise(r => setTimeout(r, 200));
+                await current.sendData(deviceId, '010D\r'); // Speed
+                await new Promise(r => setTimeout(r, 200));
+                await current.sendData(deviceId, '0105\r'); // Coolant
+                await new Promise(r => setTimeout(r, 200));
+                await current.sendData(deviceId, 'ATRV\r'); // Voltage
+            } catch (e) {
+                console.error('[SerialStore] Polling failed:', e);
+            }
+        };
+
+        const interval = setInterval(poll, 2500); // Poll set of PIDs every 2.5s
+        (state as any).livePollingInterval = interval;
+    },
+
+    stopLivePolling: () => {
+        const state = get() as any;
+        if (state.livePollingInterval) {
+            clearInterval(state.livePollingInterval);
+            set({ livePollingInterval: null } as any);
+            console.log('[SerialStore] Live Telemetry Polling Stopped.');
         }
     },
 
@@ -389,6 +436,9 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                     set((s) => ({
                         serialOutput: [...s.serialOutput, `${timestamp()} [SYS] ELM327 Reset Sent...`].slice(-800)
                     }));
+
+                    // Start Live Polling for Bluetooth Link
+                    get().startLivePolling(id);
                 }, 1000);
             }
 
@@ -396,13 +446,15 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         } catch (err) {
             set({ isConnecting: false });
             throw err;
-            return null;
         }
     },
 
     disconnectDevice: async (deviceId: string) => {
         const device = get().devices.find((d) => d.id === deviceId);
         if (!device) return;
+
+        // Stop polling first
+        get().stopLivePolling();
 
         if (device.connection) {
             if (device.type === 'serial') {
@@ -493,6 +545,46 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                     if (completeLines.length > 0) {
                         pendingLines.push(...completeLines.map(l => `${timestamp()} ${l}`));
 
+                        // 🔍 PARSE FOR OBD RESPONSES
+                        for (const line of completeLines) {
+                            const cleanLine = line.trim().replace(/\s+/g, '');
+
+                            // 1. Handle Battery Voltage (ATRV) -> e.g. "12.4V"
+                            if (cleanLine.includes('V') && /^\d+\.\d+V$/.test(cleanLine)) {
+                                set(s => ({
+                                    liveReadings: {
+                                        ...s.liveReadings,
+                                        VOLTAGE: { value: cleanLine.replace('V', ''), unit: 'V', label: 'Battery' }
+                                    }
+                                }));
+                            }
+
+                            // 2. Handle Service 01 Responses (41 XX ...)
+                            if (cleanLine.startsWith('41')) {
+                                const pid = cleanLine.substring(2, 4);
+                                const bytes = [];
+                                for (let i = 4; i < cleanLine.length; i += 2) {
+                                    bytes.push(cleanLine.substring(i, i + 2));
+                                }
+
+                                const decoded = decodeOBDResponse(pid, bytes);
+
+                                if (decoded) {
+                                    const key = Object.keys(COMMON_PIDS).find(
+                                        k => (COMMON_PIDS as any)[k] === pid
+                                    );
+                                    if (key) {
+                                        set(s => ({
+                                            liveReadings: {
+                                                ...s.liveReadings,
+                                                [key]: decoded
+                                            }
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+
                         // Limit pending buffer to avoid OOM
                         if (pendingLines.length > 200) pendingLines = pendingLines.slice(-200);
 
@@ -514,6 +606,9 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                 }));
             }
         );
+
+        // Start Live Polling for Serial Link
+        get().startLivePolling(deviceId);
 
         set({
             readerCleanup: () => {

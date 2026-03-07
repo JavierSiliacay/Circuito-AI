@@ -25,7 +25,8 @@ import {
     Info,
     FileText,
     Printer,
-    DownloadCloud
+    DownloadCloud,
+    Clock
 } from 'lucide-react';
 import { useSerialStore } from '@/store/serial-store';
 import { useIDEStore } from '@/store/ide-store';
@@ -57,7 +58,8 @@ export default function DiagnosticPage() {
         isAnalyzing,
         connectBluetooth,
         isScanning,
-        performFullScan
+        performFullScan,
+        liveReadings
     } = useSerialStore();
 
     const { baudRate, setBaudRate, isBridgeConnected, localProjectPath } = useIDEStore();
@@ -343,14 +345,54 @@ export default function DiagnosticPage() {
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
-                            <button
-                                className="p-1.5 text-text-muted hover:text-white transition-colors"
-                                title="Expand View"
-                            >
-                                <Maximize2 className="w-4 h-4" />
-                            </button>
                         </div>
                     </div>
+
+                    {/* LIVE TELEMETRY DASHBOARD */}
+                    <AnimatePresence>
+                        {activeDevice && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                className="border-b border-white/5 bg-gradient-to-r from-cyan-500/[0.03] to-transparent overflow-hidden"
+                            >
+                                <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {Object.entries(liveReadings).length === 0 ? (
+                                        <div className="col-span-full py-2 flex flex-col items-center justify-center gap-2 border border-dashed border-white/5 rounded-xl opacity-40">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-ping" />
+                                            <span className="text-[9px] font-black uppercase tracking-widest">Listening for ECU Data...</span>
+                                        </div>
+                                    ) : (
+                                        Object.entries(liveReadings).map(([key, data]) => (
+                                            <motion.div
+                                                key={key}
+                                                layout
+                                                initial={{ scale: 0.9, opacity: 0 }}
+                                                animate={{ scale: 1, opacity: 1 }}
+                                                className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-1 hover:bg-white/10 transition-all group"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-cyan-primary transition-colors">{data.label}</span>
+                                                    <Activity className="w-3 h-3 text-cyan-primary/50" />
+                                                </div>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-xl font-black text-white tracking-tighter tabular-nums">{data.value}</span>
+                                                    <span className="text-[10px] font-bold text-text-muted uppercase">{data.unit}</span>
+                                                </div>
+                                                <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
+                                                    <motion.div
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: '40%' }} // Static visual for now
+                                                        className="h-full bg-cyan-primary/50 shadow-[0_0_8px_rgba(34,211,238,0.5)]"
+                                                    />
+                                                </div>
+                                            </motion.div>
+                                        ))
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     <ScrollArea className="flex-1 font-mono min-h-0">
                         <div className="p-6 space-y-1">
@@ -657,25 +699,91 @@ export default function DiagnosticPage() {
                                         </div>
                                     </div>
 
-                                    {/* AI Specialist Insights */}
-                                    <div className="space-y-4">
+                                    {/* Diagnostic Session Trace */}
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-black uppercase tracking-tight flex items-center gap-2 text-slate-900 leading-none">
+                                            <Activity className="w-4 h-4 text-cyan-600" />
+                                            Hardware Scan Trace
+                                        </h3>
+                                        <div className="bg-slate-900 text-cyan-400 p-4 rounded-xl font-mono text-[9px] leading-relaxed border border-slate-800 shadow-inner">
+                                            {serialOutput.filter(line => line.includes('[SCAN]') || line.includes('> 0')).slice(-15).map((line, i) => (
+                                                <div key={i} className="flex gap-2 opacity-90">
+                                                    <span className="text-slate-500 whitespace-nowrap">{line.split(']')[0]}]</span>
+                                                    <span className="text-white">{line.split(']')[1] || ''}</span>
+                                                </div>
+                                            ))}
+                                            {serialOutput.length > 0 && <div className="mt-2 text-[8px] text-slate-500 uppercase font-black tracking-widest pt-2 border-t border-white/5">— END OF TELEMETRY BUFFER —</div>}
+                                        </div>
+                                    </div>
+
+                                    {/* Professional Specialist Output */}
+                                    <div className="space-y-6">
                                         <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2 text-slate-900 leading-none">
                                             <Sparkles className="w-5 h-5 text-cyan-600" />
-                                            Specialist Findings
+                                            Professional Findings
                                         </h3>
-                                        <div className="prose prose-slate prose-sm max-w-none text-slate-700 leading-relaxed font-medium">
+                                        <div className="space-y-12">
                                             {diagnosticHistory
-                                                .filter(m => m.role === 'assistant')
-                                                .slice(-1)
-                                                .map(m => m.content.split('\n').map((line, i) => (
-                                                    <p key={i} className="mb-4">
-                                                        {line.startsWith('###')
-                                                            ? <span className="block text-slate-900 font-black uppercase text-[11px] tracking-widest mb-2">{line.replace('###', '')}</span>
-                                                            : line.startsWith('*')
-                                                                ? <span className="block border-l-4 border-cyan-600 pl-4 italic text-cyan-900 font-bold my-4">{line.replace(/\*/g, '')}</span>
-                                                                : line}
-                                                    </p>
-                                                )))}
+                                                .filter(m => m.id !== 'welcome' && m.role === 'assistant')
+                                                .map((m, mIdx) => {
+                                                    const cleanText = m.content
+                                                        .replace(/#{1,6}\s?/g, '')
+                                                        .replace(/\*\*/g, '')
+                                                        .replace(/\*/g, '')
+                                                        .replace(/>\s?/g, '')
+                                                        .replace(/`/g, '')
+                                                        .trim();
+
+                                                    return (
+                                                        <div key={mIdx} className="relative pl-8 border-l-2 border-slate-100 pb-2 last:pb-0">
+                                                            <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-slate-900 shadow-sm" />
+                                                            <div className="space-y-4">
+                                                                {cleanText.split('\n').map((line, i) => {
+                                                                    const text = line.trim();
+                                                                    if (!text) return null;
+
+                                                                    const isHeader = text.length < 50 && (
+                                                                        m.content.includes(`### ${text}`) ||
+                                                                        m.content.includes(`**${text}**`) ||
+                                                                        m.content.includes(`## ${text}`)
+                                                                    );
+
+                                                                    if (isHeader) {
+                                                                        return (
+                                                                            <h4 key={i} className="text-slate-900 font-bold text-[10px] uppercase tracking-[0.2em] pt-6 mb-2 flex items-center gap-3">
+                                                                                <span className="w-4 h-[1px] bg-cyan-500" />
+                                                                                {text}
+                                                                            </h4>
+                                                                        );
+                                                                    }
+
+                                                                    if (text.startsWith('-') || text.match(/^\d+\./)) {
+                                                                        return (
+                                                                            <div key={i} className="ml-2 py-3 px-5 rounded-2xl bg-slate-50 border border-slate-100 text-[13.5px] text-slate-700 font-semibold flex gap-4 shadow-sm">
+                                                                                <span className="text-cyan-600 font-black">›</span>
+                                                                                <span>{text.replace(/^[- \d.]+\s?/, '')}</span>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    return <p key={i} className="text-[13px] text-slate-600 leading-relaxed font-medium mb-1">{text}</p>;
+                                                                })}
+                                                            </div>
+                                                            <div className="mt-6 flex items-center gap-2 text-[8px] font-black text-slate-300 uppercase tracking-widest print:hidden">
+                                                                <Clock className="w-2.5 h-2.5" />
+                                                                Entry {mIdx + 1}: {m.timestamp.toLocaleTimeString()}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+
+                                    {/* Technician Notes Placeholder */}
+                                    <div className="pt-10 border-t border-slate-100">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Technician Remarks & Recommendations</h4>
+                                        <div className="h-32 border-2 border-dashed border-slate-100 rounded-3xl p-6 relative bg-slate-50/50">
+                                            <p className="text-[9px] text-slate-300 italic font-medium uppercase tracking-widest">Manual entry area for specialized shop notes...</p>
                                         </div>
                                     </div>
 

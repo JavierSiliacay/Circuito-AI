@@ -78,7 +78,7 @@ Your specialty is applying precise patches to existing code.
 ${getDeveloperKnowledgeString()}`,
     },
     diagnostic: {
-        model: 'stepfun/step-3.5-flash:free',
+        model: 'arcee-ai/trinity-large-preview:free',
         systemPrompt: `You are the Circuito AI — Specialized Automotive Electronics & OBD2 Diagnostic Specialist.
         
 CORE EXPERTISE:
