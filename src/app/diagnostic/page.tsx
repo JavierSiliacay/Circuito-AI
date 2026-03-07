@@ -622,7 +622,7 @@ export default function DiagnosticPage() {
             {/* REPORT MODAL */}
             <AnimatePresence>
                 {showReport && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 lg:p-4 overflow-auto bg-black/90 backdrop-blur-xl print:bg-white print:p-0 print:block">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 lg:p-4 overflow-auto bg-black/90 backdrop-blur-xl print:bg-white print:p-0 print:block print:static print-report-root">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -634,7 +634,7 @@ export default function DiagnosticPage() {
                             initial={{ opacity: 0, scale: 0.95, y: 30 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 30 }}
-                            className="bg-white text-slate-900 w-full max-w-4xl min-h-screen lg:min-h-0 lg:max-h-[95vh] rounded-none lg:rounded-[40px] overflow-visible shadow-[0_0_100px_rgba(34,211,238,0.2)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none print:w-full print:block print:bg-white"
+                            className="bg-white text-slate-900 w-full max-w-4xl min-h-screen lg:min-h-0 lg:max-h-[95vh] rounded-none lg:rounded-[40px] overflow-visible shadow-[0_0_100px_rgba(34,211,238,0.2)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none print:w-full print:block print:bg-white print:!h-auto print:!min-h-0"
                         >
                             {/* Actions Header - HIDDEN ON PRINT */}
                             <div className="p-6 lg:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 backdrop-blur-md sticky top-0 z-20 print:hidden shrink-0">
@@ -668,21 +668,46 @@ export default function DiagnosticPage() {
                             <div className="flex-1 overflow-y-auto lg:p-12 font-sans print:overflow-visible print:p-0 print:block">
                                 <style jsx global>{`
                                     @media print {
-                                        body * { visibility: hidden; }
-                                        .print-content, .print-content * { visibility: visible; }
-                                        .print-content { 
-                                            position: absolute; 
-                                            left: 0; 
-                                            top: 0; 
-                                            width: 100%; 
+                                        /* Hide everything else */
+                                        body > *:not(.print-report-root) { display: none !important; }
+                                        
+                                        /* Global reset for print to ensure height doesn't get capped */
+                                        html, body {
+                                            height: auto !important;
+                                            overflow: visible !important;
                                             background: white !important;
-                                            color: black !important;
+                                        }
+
+                                        /* Force all parents to be visible and flowable */
+                                        .print-report-root, 
+                                        .print-report-root *, 
+                                        #__next, 
+                                        [data-framer-portal-id] {
+                                            overflow: visible !important;
+                                            height: auto !important;
+                                            position: static !important;
+                                        }
+
+                                        .print-content { 
+                                            position: relative !important;
+                                            width: 100% !important;
+                                            height: auto !important;
+                                            overflow: visible !important;
+                                            display: block !important;
                                             padding: 0 !important;
                                             margin: 0 !important;
+                                            background: white !important;
                                         }
-                                        .page-break { page-break-before: always; }
-                                        .avoid-break { page-break-inside: avoid; }
-                                        @page { size: auto; margin: 20mm; }
+
+                                        /* Break on findings if they are too long */
+                                        .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+                                        .page-break { break-before: always; page-break-before: always; }
+                                        
+                                        @page { 
+                                            size: auto; 
+                                            margin: 15mm; 
+                                        }
+                                        
                                         ::-webkit-scrollbar { display: none; }
                                     }
                                 `}</style>
