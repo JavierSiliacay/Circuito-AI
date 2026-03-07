@@ -9,7 +9,11 @@ The platform combines a powerful code editor with specialized AI assistance and 
 ## Key Features
 
 ### Automotive Diagnostic Station
+
+![Circuito AI Diagnostic Station](docs/images/diagnostic-station-preview.png)
+
 A dedicated environment for vehicle telemetry and hardware debugging. The Diagnostic Station connects directly to hardware to stream live sensor data at high baud rates. It features a resident **Automotive AI Specialist** that can instantly analyze live serial telemetry, identify fault codes, and offer advanced mechanical and electrical insights.
+
 
 ### Browser-Based Firmware Flashing (Neural Link)
 Direct communication with your physical hardware using the Web Serial API. The "Neural Link" system allows you to compile and flash firmware to ESP32 and Arduino boards directly from the web interface, without any external plugins or desktop applications.
