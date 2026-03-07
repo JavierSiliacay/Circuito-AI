@@ -12,14 +12,25 @@ import {
     SerialDeviceInfo,
     SerialConnection,
 } from '@/lib/web-serial';
+import {
+    isWebBluetoothSupported,
+    requestBLEDevice,
+    connectBLE,
+    writeBLE,
+    disconnectBLE,
+    BluetoothConnection
+} from '@/lib/web-bluetooth';
+import { OBD_SERVICES, COMMON_PIDS } from '@/lib/obd-utils';
 import { AIMessage } from './ide-store';
 
 export interface ConnectedDevice {
     id: string;
     name: string;
-    port: SerialPort;
-    connection: SerialConnection | null;
-    baudRate: number;
+    port?: SerialPort;         // Optional for Bluetooth
+    device?: any;  // Use any to avoid missing Web Bluetooth types in some environments
+    connection: SerialConnection | BluetoothConnection | null;
+    type: 'serial' | 'bluetooth';
+    baudRate?: number;
     status: 'connected' | 'disconnected' | 'reading';
     vendorId?: number;
     productId?: number;
@@ -37,6 +48,7 @@ interface SerialState {
     init: () => void;
     scanPorts: () => Promise<void>;
     connectDevice: () => Promise<string | null>;
+    connectBluetooth: () => Promise<string | null>;
     disconnectDevice: (deviceId: string) => Promise<void>;
     openSerial: (deviceId: string, baudRate?: number) => Promise<void>;
     closeSerial: (deviceId: string) => Promise<void>;
@@ -51,7 +63,9 @@ interface SerialState {
     diagnosticHistory: AIMessage[];
     diagnosticInsights: string[];
     isAnalyzing: boolean;
+    isScanning: boolean;
     analyzeDiagnostic: (customMessage?: string) => Promise<void>;
+    performFullScan: () => Promise<void>;
 }
 
 export const useSerialStore = create<SerialState>((set, get) => ({
@@ -71,6 +85,52 @@ export const useSerialStore = create<SerialState>((set, get) => ({
     ],
     diagnosticInsights: [],
     isAnalyzing: false,
+    isScanning: false,
+
+    performFullScan: async () => {
+        const state = get();
+        const activeDevice = state.devices.find(d => d.id === state.activeDeviceId);
+
+        if (!activeDevice || activeDevice.status !== 'reading') {
+            throw new Error('Connect a device first to perform a scan.');
+        }
+
+        set({ isScanning: true });
+
+        const timestamp = () => `[${new Date().toLocaleTimeString()}]`;
+        const log = (msg: string) => {
+            set((s) => ({
+                serialOutput: [...s.serialOutput, `${timestamp()} [SCAN] ${msg}`].slice(-800)
+            }));
+        };
+
+        try {
+            log('Requesting Stored Trouble Codes (Service 03)...');
+            await get().sendData(activeDevice.id, '03\r');
+            await new Promise(r => setTimeout(r, 1500));
+
+            log('Requesting Pending Trouble Codes (Service 07)...');
+            await get().sendData(activeDevice.id, '07\r');
+            await new Promise(r => setTimeout(r, 1000));
+
+            log('Querying Engine State (Service 01)...');
+            await get().sendData(activeDevice.id, '010C\r'); // RPM
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, '0105\r'); // Coolant
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, '0104\r'); // Load
+
+            log('Scan Complete. Passing telemetry to AI Specialist...');
+
+            // Trigger AI analysis with a specific prompt
+            await get().analyzeDiagnostic("I've finished a full hardware scan. Please decode any DTCs found and give me a vehicle health summary based on these readings.");
+        } catch (err) {
+            console.error('Full scan failed:', err);
+            log('Scan Interrupted: ' + (err instanceof Error ? err.message : String(err)));
+        } finally {
+            set({ isScanning: false });
+        }
+    },
 
     analyzeDiagnostic: async (customMessage?: string) => {
         const state = get();
@@ -233,6 +293,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                         status: 'disconnected' as const,
                         vendorId: info.vendorId,
                         productId: info.productId,
+                        type: 'serial' as const,
                     };
                 });
                 return { devices: updated };
@@ -257,6 +318,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                 name: deviceInfo.name,
                 port: deviceInfo.port,
                 connection: null,
+                type: 'serial',
                 baudRate: 115200,
                 status: 'connected',
                 vendorId: deviceInfo.vendorId,
@@ -276,12 +338,78 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         }
     },
 
+    connectBluetooth: async () => {
+        set({ isConnecting: true });
+        try {
+            const bleInfo = await requestBLEDevice();
+            if (!bleInfo) {
+                set({ isConnecting: false });
+                return null;
+            }
+
+            const id = `ble-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+            const timestamp = () => `[${new Date().toLocaleTimeString()}]`;
+
+            const connection = await connectBLE(
+                bleInfo.device,
+                (text) => {
+                    // Direct stream for BLE (usually already line-oriented or small chunks)
+                    set((s) => ({
+                        serialOutput: [...s.serialOutput, `${timestamp()} [BLE] ${text.trim()}`].slice(-800)
+                    }));
+                },
+                () => {
+                    // On Disconnect
+                    set((state) => ({
+                        devices: state.devices.map(d => d.id === id ? { ...d, status: 'disconnected' } : d)
+                    }));
+                }
+            );
+
+            const connectedDevice: ConnectedDevice = {
+                id,
+                name: bleInfo.name,
+                device: bleInfo.device,
+                connection,
+                type: 'bluetooth',
+                status: 'reading',
+            };
+
+            set((state) => ({
+                devices: [...state.devices, connectedDevice],
+                activeDeviceId: id,
+                isConnecting: false,
+            }));
+
+            // Initial ELM327 Handshake if it looks like an OBD device
+            if (bleInfo.name.toUpperCase().includes('OBD') || bleInfo.name.toUpperCase().includes('ELM')) {
+                setTimeout(async () => {
+                    await writeBLE(connection, 'ATZ\r');
+                    set((s) => ({
+                        serialOutput: [...s.serialOutput, `${timestamp()} [SYS] ELM327 Reset Sent...`].slice(-800)
+                    }));
+                }, 1000);
+            }
+
+            return id;
+        } catch (err) {
+            set({ isConnecting: false });
+            throw err;
+            return null;
+        }
+    },
+
     disconnectDevice: async (deviceId: string) => {
         const device = get().devices.find((d) => d.id === deviceId);
         if (!device) return;
 
         if (device.connection) {
-            await closeConnection(device.connection);
+            if (device.type === 'serial') {
+                await closeConnection(device.connection as SerialConnection);
+            } else {
+                await disconnectBLE(device.connection as BluetoothConnection);
+            }
         }
 
         set((state) => ({
@@ -307,8 +435,12 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         }
 
         // Release physical port LOCK if already connected but we're re-opening
-        if (device.connection) {
-            await closeConnection(device.connection);
+        if (device.connection && device.type === 'serial') {
+            await closeConnection(device.connection as SerialConnection);
+        }
+
+        if (device.type !== 'serial' || !device.port) {
+            throw new Error('Device is not a serial connection');
         }
 
         const connection = await openConnection(device.port, baudRate);
@@ -387,8 +519,9 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             readerCleanup: () => {
                 stopReader();
                 // We also close the connection to release the lock when explicitly stopping
-                if (connection.isOpen) {
-                    closeConnection(connection);
+                const conn = connection as any;
+                if (conn.isOpen && conn.port) {
+                    closeConnection(conn as SerialConnection);
                 }
             }
         });
@@ -396,9 +529,9 @@ export const useSerialStore = create<SerialState>((set, get) => ({
 
     closeSerial: async (deviceId: string) => {
         const device = get().devices.find((d) => d.id === deviceId);
-        if (!device?.connection) return;
+        if (!device?.connection || device.type !== 'serial') return;
 
-        await closeConnection(device.connection);
+        await closeConnection(device.connection as SerialConnection);
 
         set((state) => ({
             devices: state.devices.map((d) =>
@@ -413,7 +546,11 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         const device = get().devices.find((d) => d.id === deviceId);
         if (!device?.connection) throw new Error('Device not connected');
 
-        await writeSerial(device.connection, data);
+        if (device.type === 'serial') {
+            await writeSerial(device.connection as SerialConnection, data);
+        } else {
+            await writeBLE(device.connection as BluetoothConnection, data);
+        }
     },
 
     clearOutput: () => set({ serialOutput: [] }),

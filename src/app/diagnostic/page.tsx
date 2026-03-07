@@ -18,7 +18,14 @@ import {
     LogOut,
     Send,
     Copy,
-    Check
+    Check,
+    Bluetooth,
+    Wifi,
+    X,
+    Info,
+    FileText,
+    Printer,
+    DownloadCloud
 } from 'lucide-react';
 import { useSerialStore } from '@/store/serial-store';
 import { useIDEStore } from '@/store/ide-store';
@@ -48,6 +55,9 @@ export default function DiagnosticPage() {
         analyzeDiagnostic,
         diagnosticHistory,
         isAnalyzing,
+        connectBluetooth,
+        isScanning,
+        performFullScan
     } = useSerialStore();
 
     const { baudRate, setBaudRate, isBridgeConnected, localProjectPath } = useIDEStore();
@@ -60,6 +70,9 @@ export default function DiagnosticPage() {
     const [inputValue, setInputValue] = useState('');
     const [isCopied, setIsCopied] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [showReport, setShowReport] = useState(false);
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -93,7 +106,12 @@ export default function DiagnosticPage() {
 
     const activeDevice = devices.find((d) => d.status === 'reading');
 
-    const handleConnect = async () => {
+    const handleConnect = () => {
+        setIsConnectModalOpen(true);
+    };
+
+    const handleSerialConnect = async () => {
+        setIsConnectModalOpen(false);
         try {
             const id = await connectDevice();
             if (id) {
@@ -101,6 +119,27 @@ export default function DiagnosticPage() {
             }
         } catch (err) {
             console.error('Diagnostic connection failed:', err);
+        }
+    };
+
+    const handleBluetoothConnect = async () => {
+        setConnectionError(null);
+        try {
+            const id = await connectBluetooth();
+            if (id) {
+                setIsConnectModalOpen(false);
+            } else {
+                // User cancelled or no device picked
+            }
+        } catch (err: any) {
+            console.error('Bluetooth connection failed:', err);
+            let msg = 'Failed to open Bluetooth. ';
+            if (err.name === 'SecurityError') msg += 'Secure context (HTTPS) required.';
+            else if (err.name === 'NotFoundError') msg = ''; // User cancelled
+            else if (err.name === 'NotSupportedError') msg += 'Bluetooth is not supported in this browser.';
+            else msg += (err.message || 'Check if Bluetooth is enabled.');
+
+            if (msg) setConnectionError(msg);
         }
     };
 
@@ -166,12 +205,30 @@ export default function DiagnosticPage() {
                             <p className="text-[9px] lg:text-[10px] text-cyan-primary font-bold opacity-80 uppercase tracking-tighter">Automotive AI Specialist</p>
                         </div>
                     </Link>
-                    <button
-                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
-                    >
-                        <Sparkles className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <AnimatePresence>
+                            {connectionError && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    className="bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-lg flex items-center gap-2"
+                                >
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                                    <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">{connectionError}</span>
+                                    <button onClick={() => setConnectionError(null)} className="ml-1 text-red-400/50 hover:text-red-400">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                        <button
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-xl transition-all border ${isSidebarOpen ? 'bg-cyan-primary/10 border-cyan-primary/30 text-cyan-primary' : 'bg-white/5 border-white/10 text-text-muted'}`}
+                        >
+                            <Sparkles className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="h-8 w-[1px] bg-white/10 mx-2 hidden lg:block" />
@@ -187,9 +244,13 @@ export default function DiagnosticPage() {
 
                     {/* Status Badges */}
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${activeDevice ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted'}`}>
-                        <Usb className="w-3.5 h-3.5 shrink-0" />
+                        {activeDevice?.type === 'bluetooth' ? (
+                            <Bluetooth className="w-3.5 h-3.5 shrink-0" />
+                        ) : (
+                            <Usb className="w-3.5 h-3.5 shrink-0" />
+                        )}
                         <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest truncate max-w-[120px] lg:max-w-none">
-                            {activeDevice ? `COM: ${activeDevice.name}` : 'NO COM'}
+                            {activeDevice ? `${activeDevice.type === 'bluetooth' ? 'BLE' : 'COM'}: ${activeDevice.name}` : 'OFFLINE'}
                         </span>
                     </div>
 
@@ -256,12 +317,16 @@ export default function DiagnosticPage() {
                         </div>
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => analyzeDiagnostic("Please analyze these recent readings.")}
-                                disabled={isAnalyzing || serialOutput.length === 0}
+                                onClick={() => performFullScan()}
+                                disabled={isAnalyzing || isScanning || serialOutput.length === 0}
                                 className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all disabled:opacity-30"
                             >
-                                <Sparkles className="w-3 h-3" />
-                                Sync to AI
+                                {isScanning ? (
+                                    <RotateCcw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <Sparkles className="w-3 h-3" />
+                                )}
+                                {isScanning ? 'Polling ECU...' : 'Auto-Scan vehicle'}
                             </button>
                             <button
                                 onClick={handleCopy}
@@ -308,8 +373,8 @@ export default function DiagnosticPage() {
                             ) : (
                                 <>
                                     <div className="flex items-center gap-3 text-[10px] font-black text-cyan-primary mb-4 opacity-100 select-none">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-ping" />
-                                        STREAMING AT {activeDevice.baudRate} BAUD / PROTOCOL: ISO 15765-4 (CAN)
+                                        <div className={`w-1.5 h-1.5 rounded-full bg-cyan-primary ${isScanning ? 'animate-ping' : ''}`} />
+                                        {isScanning ? 'EXECUTING OBDII SYSTEM SCAN - POLLING SERVICES 01/03/07/09' : `STREAMING AT ${activeDevice.baudRate} BAUD / PROTOCOL: ISO 15765-4 (CAN)`}
                                     </div>
                                     <div className="select-text">
                                         {serialOutput.slice(-150).map((line, i) => (
@@ -475,15 +540,27 @@ export default function DiagnosticPage() {
 
                                     <div className="flex gap-3">
                                         <button
-                                            onClick={() => analyzeDiagnostic()}
-                                            disabled={isAnalyzing || serialOutput.length === 0}
-                                            className={`flex-1 h-12 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${isAnalyzing || serialOutput.length === 0
+                                            onClick={() => performFullScan()}
+                                            disabled={isAnalyzing || isScanning || serialOutput.length === 0}
+                                            className={`flex-1 h-12 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${isAnalyzing || isScanning || serialOutput.length === 0
                                                 ? 'bg-white/5 border border-white/5 text-text-muted'
                                                 : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
                                                 }`}
                                         >
-                                            <Activity className="w-3.5 h-3.5" />
-                                            System Scan
+                                            {isScanning ? (
+                                                <RotateCcw className="w-3.5 h-3.5 animate-spin text-cyan-primary" />
+                                            ) : (
+                                                <Activity className="w-3.5 h-3.5" />
+                                            )}
+                                            {isScanning ? 'Scanning...' : 'Full System Scan'}
+                                        </button>
+                                        <button
+                                            onClick={() => setShowReport(true)}
+                                            disabled={diagnosticHistory.length < 2}
+                                            className="w-12 h-12 flex items-center justify-center rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary hover:bg-cyan-primary/20 transition-all group disabled:opacity-30 disabled:grayscale"
+                                            title="Generate Diagnostic Report"
+                                        >
+                                            <FileText className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                         </button>
                                         <Link
                                             href="/ide"
@@ -499,6 +576,215 @@ export default function DiagnosticPage() {
                     )}
                 </AnimatePresence>
             </main>
+
+            {/* REPORT MODAL */}
+            <AnimatePresence>
+                {showReport && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowReport(false)}
+                            className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white text-slate-900 w-full max-w-2xl max-h-[90vh] rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(34,211,238,0.3)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none"
+                        >
+                            {/* Actions Header */}
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 print:hidden">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center">
+                                        <CircuitoLogo className="w-8 h-8 contrast-200 invert" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-sm font-black uppercase tracking-tight">Diagnostic Summary</h2>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Technician Copy</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="h-10 px-4 rounded-xl bg-cyan-600 text-white text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 hover:bg-cyan-700 transition-all"
+                                    >
+                                        <Printer className="w-3.5 h-3.5" />
+                                        Print Report
+                                    </button>
+                                    <button
+                                        onClick={() => setShowReport(false)}
+                                        className="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-300 transition-all"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Report Body */}
+                            <ScrollArea className="flex-1 p-10 font-sans print:p-0">
+                                <div className="max-w-xl mx-auto space-y-8">
+                                    {/* Brand Header */}
+                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-8">
+                                        <div className="flex items-center gap-4">
+                                            <CircuitoLogo className="w-14 h-14" />
+                                            <div>
+                                                <h1 className="text-3xl font-black italic tracking-tighter uppercase leading-none">CIRCUITO AI</h1>
+                                                <p className="text-xs font-black text-cyan-600 uppercase tracking-[0.2em] mt-1">Automotive Intelligence Unit</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Report ID</div>
+                                            <div className="text-sm font-bold tabular-nums">CRX-{Math.random().toString(36).slice(2, 9).toUpperCase()}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Date Generated</div>
+                                            <div className="text-sm font-bold">{new Date().toLocaleDateString()}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Vehicle Info */}
+                                    <div className="grid grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                                        <div>
+                                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</h4>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                                <span className="text-xs font-bold uppercase tracking-tight text-green-700">Digital Handshake Active</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Hardware Interface</h4>
+                                            <div className="text-xs font-bold text-slate-700">{activeDevice?.type === 'bluetooth' ? 'BLE Wireless Adapter' : 'Serial USB Link'}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* AI Specialist Insights */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2 text-slate-900 leading-none">
+                                            <Sparkles className="w-5 h-5 text-cyan-600" />
+                                            Specialist Findings
+                                        </h3>
+                                        <div className="prose prose-slate prose-sm max-w-none text-slate-700 leading-relaxed font-medium">
+                                            {diagnosticHistory
+                                                .filter(m => m.role === 'assistant')
+                                                .slice(-1)
+                                                .map(m => m.content.split('\n').map((line, i) => (
+                                                    <p key={i} className="mb-4">
+                                                        {line.startsWith('###')
+                                                            ? <span className="block text-slate-900 font-black uppercase text-[11px] tracking-widest mb-2">{line.replace('###', '')}</span>
+                                                            : line.startsWith('*')
+                                                                ? <span className="block border-l-4 border-cyan-600 pl-4 italic text-cyan-900 font-bold my-4">{line.replace(/\*/g, '')}</span>
+                                                                : line}
+                                                    </p>
+                                                )))}
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="pt-10 border-t border-slate-100 flex flex-col items-center gap-4 text-center">
+                                        <p className="text-[10px] text-slate-400 italic font-medium max-w-xs">
+                                            This report was generated using Circuito AI Real-time Telemetry Processing. Recommendations are based on decoded OBDII signals and neural analysis.
+                                        </p>
+                                        <div className="flex gap-4">
+                                            <div className="w-32 h-[1px] bg-slate-200" />
+                                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em]">Authorized Session</span>
+                                            <div className="w-32 h-[1px] bg-slate-200" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </ScrollArea>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* CONNECTION SELECTOR MODAL */}
+            <AnimatePresence>
+                {isConnectModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsConnectModalOpen(false)}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="bg-[#0A0F1C] border border-white/10 w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative z-10"
+                        >
+                            <div className="p-8">
+                                <div className="flex justify-between items-center mb-8">
+                                    <div>
+                                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Initialize Link</h2>
+                                        <p className="text-xs text-text-muted font-bold uppercase tracking-widest opacity-60">Select hardware interface</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsConnectModalOpen(false)}
+                                        className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all"
+                                    >
+                                        <X className="w-5 h-5 text-white/40" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <button
+                                        onClick={handleSerialConnect}
+                                        className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-cyan-primary/50 hover:bg-cyan-primary/5 transition-all text-left flex items-center gap-6"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/20 transition-colors">
+                                            <Usb className="w-6 h-6 text-white/40 group-hover:text-cyan-primary transition-colors" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-widest">Serial Link (USB)</h3>
+                                            <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Direct tether for high-speed firmware and stable debug stream.</p>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={handleBluetoothConnect}
+                                        className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-purple-ai/50 hover:bg-purple-ai/5 transition-all text-left flex items-center gap-6"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-purple-ai/20 transition-colors">
+                                            <Bluetooth className="w-6 h-6 text-white/40 group-hover:text-purple-ai transition-colors" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-sm font-black text-white uppercase tracking-widest">Wireless Link (BLE)</h3>
+                                                <span className="px-1.5 py-0.5 rounded bg-purple-ai/20 text-purple-ai text-[8px] font-black uppercase tracking-tighter">Modern Adapters</span>
+                                            </div>
+                                            <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Best for newer BLE / Bluetooth 4.0+ adapters. Faster discovery and pairing.</p>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <div className="mt-6 p-4 rounded-2xl bg-cyan-primary/5 border border-cyan-primary/10">
+                                    <div className="flex gap-3">
+                                        <Info className="w-4 h-4 text-cyan-primary shrink-0 mt-0.5" />
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] text-cyan-primary/80 font-bold uppercase tracking-wider">Technician Tip: Legacy Bluetooth</p>
+                                            <p className="text-[10px] text-text-muted leading-relaxed">
+                                                If your ELM327 is an older model (Bluetooth 2.1/Classic), it won't show up in the Wireless Link list.
+                                                Instead, use the **Serial Link (USB)** and select the **Outgoing COM Port** assigned to your Bluetooth device in Windows Settings.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                                    <div className="flex gap-3">
+                                        <Wifi className="w-4 h-4 text-cyan-primary/40 shrink-0" />
+                                        <p className="text-[10px] text-text-muted leading-relaxed italic">
+                                            Hardware Link uses Web Serial & Web Bluetooth APIs. Ensure your browser is up to date and you have granted necessary permissions.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
