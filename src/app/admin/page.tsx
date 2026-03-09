@@ -13,7 +13,12 @@ import {
     ExternalLink,
     AlertCircle,
     Activity,
-    Monitor
+    Monitor,
+    Trash2,
+    Ban,
+    MessageSquare,
+    ShieldAlert,
+    RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,10 +28,11 @@ interface Profile {
     full_name: string;
     avatar_url: string;
     category: 'student' | 'enthusiast' | 'mechanic';
-    verification_status: 'pending' | 'verified' | 'rejected';
+    verification_status: 'pending' | 'verified' | 'rejected' | 'banned';
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
+    warning_message: string | null;
     created_at: string;
 }
 
@@ -79,6 +85,44 @@ export default function AdminPage() {
 
     const handleReject = async (profileId: string) => {
         handleUpdateAccess(profileId, { verification_status: 'rejected', has_ai_access: false, has_diag_access: false });
+    };
+
+    const handleBan = async (profileId: string) => {
+        if (window.confirm('Are you sure you want to BAN this user? They will lose all access immediately.')) {
+            handleUpdateAccess(profileId, {
+                verification_status: 'banned',
+                has_ai_access: false,
+                has_diag_access: false
+            });
+        }
+    };
+
+    const handleUnban = async (profileId: string) => {
+        if (window.confirm('Reverse ban for this user?')) {
+            handleUpdateAccess(profileId, { verification_status: 'verified' });
+        }
+    };
+
+    const handleWarn = async (profileId: string) => {
+        const msg = window.prompt('Enter warning message to show to the user:');
+        if (msg !== null) {
+            handleUpdateAccess(profileId, { warning_message: msg });
+        }
+    };
+
+    const handleDeleteAccount = async (profileId: string) => {
+        if (window.confirm('DANGER: Permanently DELETE this account? This cannot be undone.')) {
+            setUpdating(profileId);
+            const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', profileId);
+
+            if (!error) {
+                setProfiles(prev => prev.filter(p => p.id !== profileId));
+            }
+            setUpdating(null);
+        }
     };
 
     return (
@@ -206,6 +250,7 @@ export default function AdminPage() {
                                 <th className="p-5 text-[10px] font-black text-text-muted uppercase tracking-widest">AI Agent Access</th>
                                 <th className="p-5 text-[10px] font-black text-text-muted uppercase tracking-widest">Diagnostic Access</th>
                                 <th className="p-5 text-[10px] font-black text-text-muted uppercase tracking-widest">Status</th>
+                                <th className="p-5 text-[10px] font-black text-text-muted uppercase tracking-widest">Administrative Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -227,8 +272,8 @@ export default function AdminPage() {
                                                     handleUpdateAccess(profile.id, { has_ai_access: !profile.has_ai_access });
                                                 }
                                             }}
-                                            disabled={updating === profile.id}
-                                            className={`p-2 rounded-xl border transition-all ${profile.has_ai_access ? 'bg-cyan-primary/10 border-cyan-primary/20 text-cyan-primary' : 'bg-white/5 border-white/5 text-text-muted'} ${updating === profile.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={updating === profile.id || profile.verification_status === 'banned'}
+                                            className={`p-2 rounded-xl border transition-all ${profile.has_ai_access ? 'bg-cyan-primary/10 border-cyan-primary/20 text-cyan-primary' : 'bg-white/5 border-white/5 text-text-muted'} ${(updating === profile.id || profile.verification_status === 'banned') ? 'opacity-30 cursor-not-allowed' : ''}`}
                                         >
                                             {updating === profile.id ? (
                                                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -247,8 +292,8 @@ export default function AdminPage() {
                                                     handleUpdateAccess(profile.id, { has_diag_access: !profile.has_diag_access });
                                                 }
                                             }}
-                                            disabled={updating === profile.id}
-                                            className={`p-2 rounded-xl border transition-all ${profile.has_diag_access ? 'bg-purple-ai/10 border-purple-ai/20 text-purple-ai' : 'bg-white/5 border-white/5 text-text-muted'} ${updating === profile.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={updating === profile.id || profile.verification_status === 'banned'}
+                                            className={`p-2 rounded-xl border transition-all ${profile.has_diag_access ? 'bg-purple-ai/10 border-purple-ai/20 text-purple-ai' : 'bg-white/5 border-white/5 text-text-muted'} ${(updating === profile.id || profile.verification_status === 'banned') ? 'opacity-30 cursor-not-allowed' : ''}`}
                                         >
                                             {updating === profile.id ? (
                                                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -260,10 +305,57 @@ export default function AdminPage() {
                                         </button>
                                     </td>
                                     <td className="p-5">
-                                        <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${profile.verification_status === 'verified' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-                                            }`}>
-                                            {profile.verification_status}
-                                        </span>
+                                        <div className="flex flex-col gap-1.5">
+                                            <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-center ${profile.verification_status === 'verified' ? 'bg-green-success/10 text-green-success' :
+                                                profile.verification_status === 'banned' ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]' :
+                                                    'bg-red-500/10 text-red-500'
+                                                }`}>
+                                                {profile.verification_status}
+                                            </span>
+                                            {profile.warning_message && (
+                                                <span className="text-[8px] font-bold text-yellow-500 uppercase tracking-tighter opacity-80 flex items-center gap-1">
+                                                    <AlertCircle className="w-2.5 h-2.5" />
+                                                    Warning Sent
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-5">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => handleWarn(profile.id)}
+                                                title="Warn User"
+                                                className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/20 transition-all"
+                                            >
+                                                <MessageSquare className="w-4 h-4" />
+                                            </button>
+
+                                            {profile.verification_status === 'banned' ? (
+                                                <button
+                                                    onClick={() => handleUnban(profile.id)}
+                                                    title="Unban User"
+                                                    className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 hover:bg-green-500/20 transition-all"
+                                                >
+                                                    <RotateCcw className="w-4 h-4" />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleBan(profile.id)}
+                                                    title="Ban User"
+                                                    className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 transition-all"
+                                                >
+                                                    <Ban className="w-4 h-4" />
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => handleDeleteAccount(profile.id)}
+                                                title="Delete Account"
+                                                className="p-2 rounded-lg bg-white/5 border border-white/10 text-text-muted hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
