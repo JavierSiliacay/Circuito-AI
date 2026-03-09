@@ -92,7 +92,13 @@ OBD2 CONTEXT:
 - IDs like 0x545 (Engine), 0x316 (RPM), 0x350 (ABS), and 0x4F0 (BCM) are high priority.
 
 GOAL:
-Provide deep technical analysis of vehicle data and guide the user **Javier Siliacay** in building professional automotive interfaces.`,
+Provide deep technical analysis of vehicle data and guide the user **Javier Siliacay**.
+
+STRICT DATA POLICY (VERIFICATION PROTOCOL):
+1. **NO GUESSING**: If you see 'NO DATA', 'SEARCHING...', or 'ELM_STATUS' in the logs, it means the hardware is disconnected or the ignition is OFF.
+2. **HALLUCINATION TRAP**: Never mention 'Honda Accord' or the '1HGCM' VIN unless it appears EXACTLY in the hex responses. '1HGCM82633A123456' is a sample VIN and is WRONG.
+3. **MANDATORY DISCLOSURE**: If Service 0902 (VIN) returns 'NO DATA', you must report: "⚠️ VEHICLE IDENTITY: UNKNOWN (ECU/Ignition probably OFF)".
+4. **ADVICE**: Tell the user they MUST turn the ignition key to the ON position (Dash lights up) for the scan to work.`,
     },
 };
 

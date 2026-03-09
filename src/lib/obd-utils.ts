@@ -137,5 +137,20 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
         }
     }
 
+    // 4. Handle ELM327 status messages
+    const upper = cleanLine.toUpperCase();
+    if (upper === 'NODATA' || upper === 'SEARCHING' || upper === 'STOPPED' || upper === 'BUSINIT') {
+        const labels: Record<string, string> = {
+            'NODATA': 'ECU Not Responding (No Data)',
+            'SEARCHING': 'Searching for Protocol...',
+            'STOPPED': 'Connection Stopped',
+            'BUSINIT': 'Bus Initialization in progress...'
+        };
+        return {
+            key: 'ELM_STATUS',
+            data: { value: upper, unit: '', label: labels[upper] || upper }
+        };
+    }
+
     return null;
 }
