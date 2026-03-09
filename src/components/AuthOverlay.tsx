@@ -8,81 +8,102 @@ import { useAuthStore } from '@/store/auth-store';
 export default function AuthOverlay() {
     const { user, profile, isLoading, signOut, clearWarning } = useAuthStore();
 
-    // 1. Loading state handled by Providers/Layout usually, but safe to check here
+    // 1. Loading state
     if (isLoading) return null;
 
-    // 2. Handle Banned Users
-    if (user && profile?.verification_status === 'banned') {
-        return (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A0F1C] p-4">
-                <div className="absolute inset-0 bg-red-500/5 blur-[120px]" />
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="w-full max-w-md bg-[#0D121F] border border-red-500/20 rounded-[40px] p-10 text-center space-y-8 shadow-[0_0_50px_rgba(239,68,68,0.1)]"
-                >
-                    <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 mx-auto">
-                        <Ban className="w-10 h-10 text-red-500" />
-                    </div>
-                    <div className="space-y-4">
-                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Account Banned</h2>
-                        <p className="text-sm text-text-muted leading-relaxed">
-                            Your access to Circuito AI has been permanently revoked by an administrator due to a violation of our safety protocols or terms of service.
-                        </p>
-                    </div>
-                    <button
-                        onClick={() => signOut()}
-                        className="w-full py-4 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-xl shadow-white/5"
+    // 2. Handle Moderation Statuses (Banned, Deleted, Rejected, Warning)
+    if (user && profile) {
+        const { verification_status, warning_message } = profile;
+
+        // BANNED or DELETED (Hard Lock)
+        if (verification_status === 'banned' || verification_status === 'deleted') {
+            const isBan = verification_status === 'banned';
+            return (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A0F1C] p-4">
+                    <div className={`absolute inset-0 ${isBan ? 'bg-red-500/5' : 'bg-white/5'} blur-[120px]`} />
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className={`w-full max-w-md bg-[#0D121F] border ${isBan ? 'border-red-500/20' : 'border-white/10'} rounded-[40px] p-10 text-center space-y-8 shadow-2xl`}
                     >
-                        Sign Out
-                    </button>
-                </motion.div>
-            </div>
-        );
+                        <div className={`w-20 h-20 rounded-full ${isBan ? 'bg-red-500/10 border-red-500/20' : 'bg-white/5 border-white/10'} flex items-center justify-center border mx-auto`}>
+                            {isBan ? <Ban className="w-10 h-10 text-red-500" /> : <Trash2 className="w-10 h-10 text-text-muted" />}
+                        </div>
+                        <div className="space-y-4">
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
+                                {isBan ? 'Account Banned' : 'Account Deactivated'}
+                            </h2>
+                            <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                                <p className="text-sm text-text-muted leading-relaxed">
+                                    {warning_message || (isBan
+                                        ? "Your access has been permanently revoked due to a violation of our safety protocols."
+                                        : "This account has been terminated and deactivated.")}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => signOut()}
+                            className="w-full py-4 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl"
+                        >
+                            Return to Login
+                        </button>
+                    </motion.div>
+                </div>
+            );
+        }
+
+        // REJECTED or WARNING (Soft Notification)
+        if (verification_status === 'rejected' || warning_message) {
+            const isReject = verification_status === 'rejected';
+            return (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+                    <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className={`w-full max-w-md bg-[#0D121F] border ${isReject ? 'border-red-400/30' : 'border-yellow-500/30'} rounded-[32px] p-8 space-y-6 shadow-2xl relative overflow-hidden`}
+                    >
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className={`w-12 h-12 rounded-2xl ${isReject ? 'bg-red-400/10 border-red-400/20' : 'bg-yellow-500/10 border-yellow-500/20'} flex items-center justify-center border`}>
+                                {isReject ? <AlertTriangle className="w-6 h-6 text-red-400" /> : <ShieldAlert className="w-6 h-6 text-yellow-500" />}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                                    {isReject ? 'Request Rejected' : 'System Notice'}
+                                </h3>
+                                <p className={`text-[10px] ${isReject ? 'text-red-400' : 'text-yellow-500'} font-bold uppercase tracking-widest`}>
+                                    Administrative Feedback
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 relative z-10">
+                            <p className="text-sm text-text-muted leading-relaxed italic">
+                                {warning_message || (isReject
+                                    ? "Your request has been rejected because you did not comply with the specific requirements or you are not qualified."
+                                    : "Please review your recent activity.")}
+                            </p>
+                        </div>
+
+                        <p className="text-[11px] text-text-muted/60 text-center px-4 relative z-10">
+                            {isReject
+                                ? "You may re-submit your verification documents if you believe this was an error."
+                                : "Please acknowledge this notice to continue using the platform."}
+                        </p>
+
+                        <button
+                            onClick={() => clearWarning()}
+                            className={`w-full py-4 rounded-full ${isReject ? 'bg-red-400 text-white' : 'bg-yellow-500 text-black'} font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 relative z-10`}
+                        >
+                            <CheckCircle2 className="w-4 h-4" />
+                            {isReject ? 'Acknowledge Rejection' : 'Acknowledge Notice'}
+                        </button>
+                    </motion.div>
+                </div>
+            );
+        }
     }
 
-    // 3. Handle Warning Messages
-    if (user && profile?.warning_message) {
-        return (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-                <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="w-full max-w-md bg-[#0D121F] border border-yellow-500/30 rounded-[32px] p-8 space-y-6 shadow-2xl"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                            <AlertTriangle className="w-6 h-6 text-yellow-500" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black text-white uppercase tracking-tight">System Warning</h3>
-                            <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">Administrative Notice</p>
-                        </div>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                        <p className="text-sm text-text-muted leading-relaxed italic">
-                            "{profile.warning_message}"
-                        </p>
-                    </div>
-
-                    <p className="text-[11px] text-text-muted/60 text-center px-4">
-                        Please acknowledge this notice to continue using the platform. Further violations may result in account restriction.
-                    </p>
-
-                    <button
-                        onClick={() => clearWarning()}
-                        className="w-full py-4 rounded-full bg-yellow-500 text-black font-black text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-lg shadow-yellow-500/10 flex items-center justify-center gap-2"
-                    >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Acknowledge Notice
-                    </button>
-                </motion.div>
-            </div>
-        );
-    }
-
-    // 4. Handle Not Logged In (Default Login Screen)
+    // 3. Handle Not Logged In
     if (user) return null;
 
     const signInWithGoogle = async () => {
