@@ -10,7 +10,7 @@ export default function AuthCodeError() {
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-md bg-[#0D121F] border border-white/10 rounded-[40px] p-10 text-center shadow-2xl relative overflow-hidden"
+                className="w-full max-w-md bg-[#0D121F] border border-white/10 rounded-[40px] p-10 text-center shadow-2xl relative z-[200] overflow-hidden"
             >
                 {/* Background Decor */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-red-500/20" />

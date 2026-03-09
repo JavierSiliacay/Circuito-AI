@@ -4,9 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ShieldCheck, Mail, Ban, AlertTriangle, CheckCircle2, ShieldAlert, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
+import { usePathname } from 'next/navigation';
 
 export default function AuthOverlay() {
     const { user, profile, isLoading, signOut, clearWarning } = useAuthStore();
+    const pathname = usePathname();
+
+    // 0. Disable overlay on specific public/auth pages
+    if (pathname === '/auth/auth-code-error') return null;
 
     // 1. Loading state
     if (isLoading) return null;
