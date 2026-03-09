@@ -221,18 +221,42 @@ export default function AdminPage() {
                                     </td>
                                     <td className="p-5">
                                         <button
-                                            onClick={() => handleUpdateAccess(profile.id, { has_ai_access: !profile.has_ai_access })}
-                                            className={`p-2 rounded-xl border transition-all ${profile.has_ai_access ? 'bg-cyan-primary/10 border-cyan-primary/20 text-cyan-primary' : 'bg-white/5 border-white/5 text-text-muted'}`}
+                                            onClick={() => {
+                                                const action = profile.has_ai_access ? 'Revoke' : 'Grant';
+                                                if (window.confirm(`${action} AI Agent access for ${profile.full_name}?`)) {
+                                                    handleUpdateAccess(profile.id, { has_ai_access: !profile.has_ai_access });
+                                                }
+                                            }}
+                                            disabled={updating === profile.id}
+                                            className={`p-2 rounded-xl border transition-all ${profile.has_ai_access ? 'bg-cyan-primary/10 border-cyan-primary/20 text-cyan-primary' : 'bg-white/5 border-white/5 text-text-muted'} ${updating === profile.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            {profile.has_ai_access ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                            {updating === profile.id ? (
+                                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                            ) : profile.has_ai_access ? (
+                                                <Check className="w-4 h-4" />
+                                            ) : (
+                                                <X className="w-4 h-4" />
+                                            )}
                                         </button>
                                     </td>
                                     <td className="p-5">
                                         <button
-                                            onClick={() => handleUpdateAccess(profile.id, { has_diag_access: !profile.has_diag_access })}
-                                            className={`p-2 rounded-xl border transition-all ${profile.has_diag_access ? 'bg-purple-ai/10 border-purple-ai/20 text-purple-ai' : 'bg-white/5 border-white/5 text-text-muted'}`}
+                                            onClick={() => {
+                                                const action = profile.has_diag_access ? 'Revoke' : 'Grant';
+                                                if (window.confirm(`${action} Diagnostic access for ${profile.full_name}?`)) {
+                                                    handleUpdateAccess(profile.id, { has_diag_access: !profile.has_diag_access });
+                                                }
+                                            }}
+                                            disabled={updating === profile.id}
+                                            className={`p-2 rounded-xl border transition-all ${profile.has_diag_access ? 'bg-purple-ai/10 border-purple-ai/20 text-purple-ai' : 'bg-white/5 border-white/5 text-text-muted'} ${updating === profile.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            {profile.has_diag_access ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                            {updating === profile.id ? (
+                                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                            ) : profile.has_diag_access ? (
+                                                <Check className="w-4 h-4" />
+                                            ) : (
+                                                <X className="w-4 h-4" />
+                                            )}
                                         </button>
                                     </td>
                                     <td className="p-5">

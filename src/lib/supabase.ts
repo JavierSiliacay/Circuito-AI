@@ -21,3 +21,12 @@ export const getProfile = async (userId: string) => {
         .single();
     return { data, error };
 };
+
+// Admin Service Client (Safe for server-side usage only)
+export const createServiceClient = () => {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+        throw new Error('SUPABASE_SERVICE_ROLE_KEY is not defined');
+    }
+    return createClient(supabaseUrl, serviceRoleKey);
+};
