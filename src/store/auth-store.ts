@@ -33,9 +33,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     checkAuth: async () => {
         set({ isLoading: true });
-        const { data: { session } } = await supabase.auth.getSession();
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (session?.user) {
+            if (sessionError || !session?.user) {
+                set({ user: null, profile: null, isAdmin: false, isLoading: false });
+                return;
+            }
+
             const { data: profile, error } = await getProfile(session.user.id);
 
             // Log only actual errors, ignore "no rows found" (PGRST116) as it's expected for new users
@@ -55,8 +60,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 isAdmin: adminEmails.map(e => e.toLowerCase()).includes(session.user.email?.toLowerCase() || ''),
                 isLoading: false
             });
-        }
-        else {
+        } catch (err) {
+            console.error('[AuthStore] Auth check failed:', err);
             set({ user: null, profile: null, isAdmin: false, isLoading: false });
         }
     },
