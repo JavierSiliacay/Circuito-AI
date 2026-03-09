@@ -17,7 +17,11 @@ export default function AuthOverlay() {
     if (isLoading) return null;
 
     // 2. Handle Moderation Statuses (Banned, Deleted, Rejected, Warning)
-    if (user && profile) {
+    if (user) {
+        // If profile is missing but user is logged in, and NOT an admin, 
+        // they should be handled by OnboardingModal, but AuthOverlay should NOT let them through.
+        if (!profile) return null; // Let isLoading or Onboarding handle it
+
         const { verification_status, warning_message } = profile;
 
         // BANNED or DELETED (Hard Lock)
