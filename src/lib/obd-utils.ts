@@ -16,42 +16,31 @@ export const OBD_SERVICES = {
     PERMANENT_DTC: '0A',
 };
 
-export const COMMON_PIDS = {
-    RPM: '0C',             // 01 0C 
-    SPEED: '0D',           // 01 0D
-    COOLANT_TEMP: '05',    // 01 05
-    ENGINE_LOAD: '04',     // 01 04
-    FUEL_TRIM_SHORT: '06', // 01 06
-    FUEL_TRIM_LONG: '07',  // 01 07
-    THROTTLE_POS: '11',    // 01 11
-    BATTERY_VOLTAGE: 'ATRV', // ELM327 specific for battery
-};
+import { MODE01_PIDS, OBD_FORMULAS } from '@/config/obd-pids';
 
 /**
  * Decodes the raw hexadecimal response from an ELM327/OBDII adapter
  */
-export function decodeOBDResponse(pid: string, bytes: string[]): { value: number; unit: string; label: string } | null {
-    if (bytes.length < 2) return null;
+export function decodeOBDResponse(pid: string, bytes: string[]): { value: number | string; unit: string; label: string } | null {
+    const pidConfig = MODE01_PIDS[pid];
+    if (!pidConfig) return null;
 
     // Convert hex strings to numbers
     const values = bytes.map(b => parseInt(b, 16));
-    const A = values[0];
-    const B = values[1];
 
-    switch (pid) {
-        case COMMON_PIDS.RPM:
-            return { value: Math.round(((A * 256) + B) / 4), unit: 'RPM', label: 'Engine Speed' };
-        case COMMON_PIDS.SPEED:
-            return { value: A, unit: 'km/h', label: 'Vehicle Speed' };
-        case COMMON_PIDS.COOLANT_TEMP:
-            return { value: A - 40, unit: '°C', label: 'Engine Coolant' };
-        case COMMON_PIDS.ENGINE_LOAD:
-            return { value: Math.round((A * 100) / 255), unit: '%', label: 'Calculated Load' };
-        case COMMON_PIDS.THROTTLE_POS:
-            return { value: Math.round((A * 100) / 255), unit: '%', label: 'Throttle Position' };
-        default:
-            return null;
+    // Check if we have enough bytes
+    if (values.length < pidConfig.bytes) return null;
+
+    const formula = OBD_FORMULAS[pid];
+    if (formula) {
+        return {
+            value: formula(values),
+            unit: pidConfig.unit || '',
+            label: pidConfig.description.split(':')[0].split('—')[0].trim() // Clean up long descriptions
+        };
     }
+
+    return null;
 }
 
 /**
@@ -67,4 +56,40 @@ export function decodeDTC(byte1: string, byte2: string): string {
     const digit2 = b1 & 0x0F;
 
     return `${prefix}${digit1}${digit2}${b2}`;
+}
+
+/**
+ * High-level parser for ELM327 raw lines
+ */
+export function parseOBDLine(line: string): { key: string; data: { value: number | string; unit: string; label: string } } | null {
+    const cleanLine = line.trim().replace(/\s+/g, '');
+
+    // 1. Handle Battery Voltage (ATRV) -> e.g. "12.4V"
+    if (cleanLine.includes('V') && /^\d+\.\d+V$/.test(cleanLine)) {
+        return {
+            key: 'VOLTAGE',
+            data: { value: cleanLine.replace('V', ''), unit: 'V', label: 'Battery' }
+        };
+    }
+
+    // 2. Handle Service 01 Responses (41 XX ...)
+    if (cleanLine.startsWith('41')) {
+        const pid = cleanLine.substring(2, 4);
+        const bytes = [];
+        for (let i = 4; i < cleanLine.length; i += 2) {
+            bytes.push(cleanLine.substring(i, i + 2));
+        }
+
+        const decoded = decodeOBDResponse(pid, bytes);
+        if (decoded) {
+            const key = Object.keys(MODE01_PIDS).find(
+                k => MODE01_PIDS[k].pid === pid
+            );
+            if (key) {
+                return { key, data: decoded };
+            }
+        }
+    }
+
+    return null;
 }

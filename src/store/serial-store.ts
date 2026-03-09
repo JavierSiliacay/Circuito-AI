@@ -20,7 +20,7 @@ import {
     disconnectBLE,
     BluetoothConnection
 } from '@/lib/web-bluetooth';
-import { OBD_SERVICES, COMMON_PIDS, decodeOBDResponse } from '@/lib/obd-utils';
+import { OBD_SERVICES, decodeOBDResponse, parseOBDLine } from '@/lib/obd-utils';
 import { AIMessage } from './ide-store';
 
 export interface ConnectedDevice {
@@ -154,20 +154,27 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             }
 
             try {
-                // Background poll common PIDs
+                // Background poll core PIDs with high frequency
                 await current.sendData(deviceId, '010C\r'); // RPM
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 150));
+
                 await current.sendData(deviceId, '010D\r'); // Speed
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 150));
+
                 await current.sendData(deviceId, '0105\r'); // Coolant
-                await new Promise(r => setTimeout(r, 200));
+                await new Promise(r => setTimeout(r, 150));
+
                 await current.sendData(deviceId, 'ATRV\r'); // Voltage
+                await new Promise(r => setTimeout(r, 150));
+
+                // Optional: Secondary PIDs (Intake Temp)
+                await current.sendData(deviceId, '010F\r');
             } catch (e) {
                 console.error('[SerialStore] Polling failed:', e);
             }
         };
 
-        const interval = setInterval(poll, 2500); // Poll set of PIDs every 2.5s
+        const interval = setInterval(poll, 1200); // Polling batch every 1.2s for balance
         (state as any).livePollingInterval = interval;
     },
 
@@ -406,6 +413,17 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                     set((s) => ({
                         serialOutput: [...s.serialOutput, `${timestamp()} [BLE] ${text.trim()}`].slice(-800)
                     }));
+
+                    // 🔍 PARSE FOR OBD RESPONSES
+                    const result = parseOBDLine(text);
+                    if (result) {
+                        set(s => ({
+                            liveReadings: {
+                                ...s.liveReadings,
+                                [result.key]: result.data
+                            }
+                        }));
+                    }
                 },
                 () => {
                     // On Disconnect
@@ -548,41 +566,14 @@ export const useSerialStore = create<SerialState>((set, get) => ({
 
                         // 🔍 PARSE FOR OBD RESPONSES
                         for (const line of completeLines) {
-                            const cleanLine = line.trim().replace(/\s+/g, '');
-
-                            // 1. Handle Battery Voltage (ATRV) -> e.g. "12.4V"
-                            if (cleanLine.includes('V') && /^\d+\.\d+V$/.test(cleanLine)) {
+                            const result = parseOBDLine(line);
+                            if (result) {
                                 set(s => ({
                                     liveReadings: {
                                         ...s.liveReadings,
-                                        VOLTAGE: { value: cleanLine.replace('V', ''), unit: 'V', label: 'Battery' }
+                                        [result.key]: result.data
                                     }
                                 }));
-                            }
-
-                            // 2. Handle Service 01 Responses (41 XX ...)
-                            if (cleanLine.startsWith('41')) {
-                                const pid = cleanLine.substring(2, 4);
-                                const bytes = [];
-                                for (let i = 4; i < cleanLine.length; i += 2) {
-                                    bytes.push(cleanLine.substring(i, i + 2));
-                                }
-
-                                const decoded = decodeOBDResponse(pid, bytes);
-
-                                if (decoded) {
-                                    const key = Object.keys(COMMON_PIDS).find(
-                                        k => (COMMON_PIDS as any)[k] === pid
-                                    );
-                                    if (key) {
-                                        set(s => ({
-                                            liveReadings: {
-                                                ...s.liveReadings,
-                                                [key]: decoded
-                                            }
-                                        }));
-                                    }
-                                }
                             }
                         }
 

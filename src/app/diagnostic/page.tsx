@@ -26,7 +26,13 @@ import {
     FileText,
     Printer,
     DownloadCloud,
-    Clock
+    Clock,
+    Gauge,
+    Thermometer,
+    ArrowUpRight,
+    Fuel,
+    Droplets,
+    Wind
 } from 'lucide-react';
 import { useSerialStore } from '@/store/serial-store';
 import { useIDEStore } from '@/store/ide-store';
@@ -75,7 +81,21 @@ export default function DiagnosticPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
-    const [showReport, setShowReport] = useState(false);
+
+    const handleOpenReport = () => {
+        const activeDevice = devices.find(d => d.id === useSerialStore.getState().activeDeviceId);
+
+        const reportSnapshot = {
+            activeDevice: activeDevice ? { name: activeDevice.name, type: activeDevice.type } : null,
+            liveReadings,
+            diagnosticHistory,
+            serialOutput: serialOutput.filter(line => line.includes('[SCAN]') || line.includes('> 0') || line.includes('41')).slice(-12),
+            generatedAt: new Date().toLocaleString()
+        };
+
+        localStorage.setItem('circuito_diagnostic_snapshot', JSON.stringify(reportSnapshot));
+        window.open('/diagnostic/report', '_blank');
+    };
 
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -357,40 +377,74 @@ export default function DiagnosticPage() {
                                 <motion.div
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}
-                                    className="border-b border-white/5 bg-gradient-to-r from-cyan-500/[0.03] to-transparent overflow-hidden"
+                                    className="border-b border-white/5 bg-gradient-to-r from-cyan-500/[0.04] via-transparent to-transparent overflow-hidden"
                                 >
-                                    <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="p-5 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {Object.entries(liveReadings).length === 0 ? (
-                                            <div className="col-span-full py-2 flex flex-col items-center justify-center gap-2 border border-dashed border-white/5 rounded-xl opacity-40">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-ping" />
-                                                <span className="text-[9px] font-black uppercase tracking-widest">Listening for ECU Data...</span>
+                                            <div className="col-span-full py-4 flex flex-col items-center justify-center gap-3 border border-dashed border-white/5 rounded-[24px] bg-white/[0.02]">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-cyan-primary animate-ping" />
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-primary/60">Initializing ECU Link</span>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest italic opacity-40">Polling high-speed CAN traffic...</span>
                                             </div>
                                         ) : (
-                                            Object.entries(liveReadings).map(([key, data]) => (
-                                                <motion.div
-                                                    key={key}
-                                                    layout
-                                                    initial={{ scale: 0.9, opacity: 0 }}
-                                                    animate={{ scale: 1, opacity: 1 }}
-                                                    className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-1 hover:bg-white/10 transition-all group"
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-cyan-primary transition-colors">{data.label}</span>
-                                                        <Activity className="w-3 h-3 text-cyan-primary/50" />
-                                                    </div>
-                                                    <div className="flex items-baseline gap-1">
-                                                        <span className="text-xl font-black text-white tracking-tighter tabular-nums">{data.value}</span>
-                                                        <span className="text-[10px] font-bold text-text-muted uppercase">{data.unit}</span>
-                                                    </div>
-                                                    <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-                                                        <motion.div
-                                                            initial={{ width: 0 }}
-                                                            animate={{ width: '40%' }} // Static visual for now
-                                                            className="h-full bg-cyan-primary/50 shadow-[0_0_8px_rgba(34,211,238,0.5)]"
-                                                        />
-                                                    </div>
-                                                </motion.div>
-                                            ))
+                                            Object.entries(liveReadings).map(([key, data]) => {
+                                                const isRPM = key === 'RPM';
+                                                const isVoltage = key === 'VOLTAGE';
+                                                const isSpeed = key === 'SPEED';
+                                                const isTemp = key === 'COOLANT_TEMP';
+
+                                                return (
+                                                    <motion.div
+                                                        key={key}
+                                                        layout
+                                                        initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                                                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                                                        className={`relative overflow-hidden bg-[#0D121F] border ${isRPM ? 'border-cyan-primary/30 shadow-[0_0_20px_rgba(34,211,238,0.1)]' : 'border-white/5'} rounded-[24px] p-4 flex flex-col gap-1.5 hover:border-cyan-primary/50 transition-all group`}
+                                                    >
+                                                        {/* Background Accent */}
+                                                        <div className={`absolute top-0 right-0 w-24 h-24 blur-[40px] opacity-[0.05] pointer-events-none ${isRPM ? 'bg-cyan-primary' : isTemp ? 'bg-red-500' : 'bg-white'}`} />
+
+                                                        <div className="flex items-center justify-between relative z-10">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`p-1.5 rounded-lg ${isRPM ? 'bg-cyan-primary/10 text-cyan-primary' : 'bg-white/5 text-text-muted'} group-hover:scale-110 transition-transform`}>
+                                                                    {isRPM ? <Gauge className="w-3.5 h-3.5" /> :
+                                                                        isTemp || key === 'ENGINE_OIL_TEMP' ? <Thermometer className="w-3.5 h-3.5" /> :
+                                                                            isVoltage ? <Zap className="w-3.5 h-3.5" /> :
+                                                                                key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
+                                                                                    key === 'MAF' ? <Wind className="w-3.5 h-3.5" /> :
+                                                                                        key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
+                                                                                            <Activity className="w-3.5 h-3.5" />}
+                                                                </div>
+                                                                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-white transition-colors">{data.label}</span>
+                                                            </div>
+                                                            <ArrowUpRight className="w-3 h-3 text-white/10 group-hover:text-cyan-primary transition-colors" />
+                                                        </div>
+
+                                                        <div className="flex items-baseline gap-1.5 mt-1 relative z-10">
+                                                            <span className={`text-2xl font-black tracking-tighter tabular-nums ${isRPM ? 'text-cyan-primary' : 'text-white'}`}>
+                                                                {data.value}
+                                                            </span>
+                                                            <span className="text-[10px] font-black text-text-muted uppercase opacity-60">{data.unit}</span>
+                                                        </div>
+
+                                                        {/* Dynamic Progress Bar */}
+                                                        <div className="w-full h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden relative z-10">
+                                                            <motion.div
+                                                                initial={{ width: 0 }}
+                                                                animate={{
+                                                                    width: isRPM ? `${Math.min((Number(data.value) / 7000) * 100, 100)}%` :
+                                                                        isSpeed ? `${Math.min((Number(data.value) / 220) * 100, 100)}%` :
+                                                                            isTemp ? `${Math.min((Number(data.value) / 120) * 100, 100)}%` : '40%'
+                                                                }}
+                                                                className={`h-full shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all ${isTemp && Number(data.value) > 100 ? 'bg-red-500' : 'bg-cyan-primary'
+                                                                    }`}
+                                                            />
+                                                        </div>
+                                                    </motion.div>
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </motion.div>
@@ -551,7 +605,7 @@ export default function DiagnosticPage() {
                                                             <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                                                                 {msg.role === 'assistant' && (
                                                                     <button
-                                                                        onClick={() => setShowReport(true)}
+                                                                        onClick={handleOpenReport}
                                                                         className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
                                                                     >
                                                                         <Printer className="w-2.5 h-2.5" />
@@ -602,7 +656,7 @@ export default function DiagnosticPage() {
                                                     Clear History
                                                 </button>
                                                 <button
-                                                    onClick={() => setShowReport(true)}
+                                                    onClick={handleOpenReport}
                                                     className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-cyan-primary hover:text-white transition-colors"
                                                 >
                                                     <Printer className="w-3.5 h-3.5" />
@@ -621,342 +675,6 @@ export default function DiagnosticPage() {
                     </AnimatePresence>
                 </main>
             </div>
-
-            {/* REPORT MODAL */}
-            <AnimatePresence>
-                {showReport && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 lg:p-4 overflow-auto bg-black/90 backdrop-blur-xl print:bg-white print:p-0 print:static print:block print:!h-auto print:!overflow-visible print-report-root">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setShowReport(false)}
-                            className="fixed inset-0 print:hidden cursor-pointer"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 30 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 30 }}
-                            className="bg-white text-slate-900 w-full max-w-4xl min-h-screen lg:min-h-0 lg:max-h-[95vh] rounded-none lg:rounded-[40px] overflow-visible shadow-[0_0_100px_rgba(34,211,238,0.2)] relative z-10 flex flex-col print:m-0 print:rounded-none print:shadow-none print:w-full print:block print:bg-white print:!h-auto print:!min-h-0 print:!relative print:!static"
-                        >
-                            {/* Actions Header - HIDDEN ON PRINT */}
-                            <div className="p-6 lg:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 backdrop-blur-md sticky top-0 z-20 print:hidden shrink-0">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-lg shadow-slate-900/10">
-                                        <CircuitoLogo className="w-10 h-10 contrast-200 invert" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-base font-black uppercase tracking-tight text-slate-900">Professional Diagnostic Report</h2>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Automotive Intelligence Unit • {new Date().toLocaleDateString()}</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => window.print()}
-                                        className="h-12 px-6 rounded-2xl bg-cyan-600 text-white text-[11px] font-black uppercase tracking-widest flex items-center gap-2.5 hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 group"
-                                    >
-                                        <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                        <span>Download PDF / Print</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setShowReport(false)}
-                                        className="w-12 h-12 rounded-2xl bg-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-300 transition-all active:scale-90"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Report Body - Optimized for Multi-page Print */}
-                            <div className="flex-1 overflow-y-auto lg:p-12 font-sans print:overflow-visible print:p-0 print:block">
-                                <style jsx global>{`
-                                        /* Global reset for print to ensure height doesn't get capped */
-                                        html, body {
-                                            height: auto !important;
-                                            overflow: visible !important;
-                                            background: white !important;
-                                            -webkit-print-color-adjust: exact !important;
-                                            print-color-adjust: exact !important;
-                                            margin: 0 !important;
-                                            padding: 0 !important;
-                                        }
-
-                                        /* Hide the dashboard wrapper manually if tailwind failed */
-                                        .print-hidden-wrapper {
-                                            display: none !important;
-                                        }
-
-                                        /* Force report to be static for multi-page flow */
-                                        .print-report-root {
-                                            position: static !important;
-                                            display: block !important;
-                                            height: auto !important;
-                                            min-height: 0 !important;
-                                            overflow: visible !important;
-                                            background: white !important;
-                                            visibility: visible !important;
-                                            width: 100% !important;
-                                        }
-
-                                        .print-report-root *, 
-                                        .print-report-root div,
-                                        .print-content,
-                                        .print-content * {
-                                            visibility: visible !important;
-                                            position: relative !important;
-                                            display: block !important;
-                                            height: auto !important;
-                                            overflow: visible !important;
-                                            background: transparent !important;
-                                        }
-
-                                        /* Specific reset for the modal content div */
-                                        .print-content {
-                                            position: static !important;
-                                            width: 100% !important;
-                                            margin: 0 !important;
-                                            padding: 0 !important;
-                                            background: white !important;
-                                        }
-                                        
-                                        @page { 
-                                            size: auto; 
-                                            margin: 15mm; 
-                                        }
-                                        
-                                        ::-webkit-scrollbar { display: none; }
-                                    }
-                                `}</style>
-
-                                <div className="print-content space-y-12 max-w-3xl mx-auto p-6 bg-white">
-                                    {/* Brand Header */}
-                                    <div className="flex justify-between items-start border-b-4 border-slate-900 pb-10">
-                                        <div className="flex items-center gap-6">
-                                            <div className="bg-slate-950 p-3 rounded-2xl">
-                                                <CircuitoLogo className="w-16 h-16 invert" />
-                                            </div>
-                                            <div>
-                                                <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none text-slate-950">CIRCUITO AI</h1>
-                                                <p className="text-sm font-black text-cyan-700 uppercase tracking-[0.3em] mt-2">D-Station Service Certificate</p>
-                                                <div className="flex items-center gap-3 mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    <span>Diagnostic Link: Active</span>
-                                                    <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                                                    <span>V-Link Protocol: ISO-TP</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right space-y-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Unique ID</div>
-                                                <div className="text-sm font-black tabular-nums text-slate-950">CRX-{Math.random().toString(36).slice(2, 9).toUpperCase()}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Session Reference</div>
-                                                <div className="text-xs font-bold text-slate-600">{new Date().toLocaleString()}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Technician Summary Summary Headings */}
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform">
-                                                <Activity className="w-10 h-10 text-slate-950" />
-                                            </div>
-                                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Hardware Link</h4>
-                                            <div className="text-xs font-black text-slate-900 truncate">
-                                                {activeDevice?.name || 'Manual Session Mode'}
-                                            </div>
-                                            <div className="text-[8px] font-bold text-cyan-600 uppercase mt-1 tracking-tighter">Connection: High Stability</div>
-                                        </div>
-                                        <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform">
-                                                <Usb className="w-10 h-10 text-slate-950" />
-                                            </div>
-                                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Interface Type</h4>
-                                            <div className="text-xs font-black text-slate-900">
-                                                {activeDevice?.type === 'bluetooth' ? 'Bluetooth ELM327' : 'Serial OBD-II (USB)'}
-                                            </div>
-                                            <div className="text-[8px] font-bold text-slate-500 uppercase mt-1 tracking-tighter">Protocol: SAE J1979</div>
-                                        </div>
-                                        <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200/60 shadow-sm relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform">
-                                                <Cpu className="w-10 h-10 text-slate-950" />
-                                            </div>
-                                            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">AI Engine Level</h4>
-                                            <div className="text-xs font-black text-slate-900 uppercase">Automotive Pro 2.0</div>
-                                            <div className="text-[8px] font-bold text-green-600 uppercase mt-1 tracking-tighter">Diagnostic Logic: Online</div>
-                                        </div>
-                                    </div>
-
-                                    {/* LIVE TELEMETRY SNAPSHOT - VERY ACCURATE DATA */}
-                                    <div className="avoid-break space-y-4">
-                                        <h3 className="text-sm font-black uppercase tracking-[0.25em] flex items-center gap-3 text-slate-950 leading-none">
-                                            <div className="w-8 h-[2px] bg-cyan-600" />
-                                            Critical Telemetry Snapshot
-                                        </h3>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {Object.entries(liveReadings).length === 0 ? (
-                                                <div className="col-span-full py-8 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center gap-2">
-                                                    <Info className="w-6 h-6 text-slate-300" />
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No live data captured during this session</span>
-                                                </div>
-                                            ) : (
-                                                Object.entries(liveReadings).map(([key, data]) => (
-                                                    <div key={key} className="bg-slate-950 p-5 rounded-3xl shadow-xl flex flex-col justify-center border-b-4 border-cyan-600/50">
-                                                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">{data.label}</span>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className="text-2xl font-black text-white tabular-nums tracking-tighter">{data.value}</span>
-                                                            <span className="text-[9px] font-black text-cyan-400 uppercase">{data.unit}</span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* TELEMETRY TRACE LOGS */}
-                                    <div className="avoid-break space-y-4">
-                                        <h3 className="text-sm font-black uppercase tracking-[0.25em] flex items-center gap-3 text-slate-950 leading-none">
-                                            <div className="w-8 h-[2px] bg-slate-900" />
-                                            Raw Data Trace (Service 01/03/07)
-                                        </h3>
-                                        <div className="bg-slate-900 border border-slate-800 p-8 rounded-[40px] font-mono text-[9px] leading-relaxed shadow-2xl relative">
-                                            <div className="absolute top-4 right-8 text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Hex Stream Log</div>
-                                            <div className="space-y-1.5 opacity-90">
-                                                {serialOutput.filter(line => line.includes('[SCAN]') || line.includes('> 0') || line.includes('41')).slice(-12).map((line, i) => (
-                                                    <div key={i} className="flex gap-4 border-b border-white/5 pb-1 last:border-0">
-                                                        <span className="text-slate-500 whitespace-nowrap hidden md:inline">[{new Date().toLocaleTimeString()}]</span>
-                                                        <span className="text-cyan-400 font-bold tracking-tight">{line}</span>
-                                                    </div>
-                                                ))}
-                                                {serialOutput.length === 0 && <div className="text-slate-500 italic">No telemetry data recorded in hardware buffer.</div>}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* AI PROFESSIONAL FINDINGS - DYNAMIC LENGTH */}
-                                    <div className="space-y-10 pt-6">
-                                        <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-4 text-slate-950 leading-none">
-                                            <Sparkles className="w-8 h-8 text-cyan-600" />
-                                            Intelligent Findings
-                                        </h3>
-                                        <div className="space-y-16">
-                                            {diagnosticHistory
-                                                .filter(m => m.id !== 'welcome')
-                                                .map((m, mIdx) => {
-                                                    const isAssistant = m.role === 'assistant';
-                                                    return (
-                                                        <div key={mIdx} className={`avoid-break relative pl-12 border-l-4 ${isAssistant ? 'border-cyan-600/30' : 'border-slate-100'} pb-4`}>
-                                                            <div className={`absolute left-[-10px] top-0 w-4 h-4 rounded-full ${isAssistant ? 'bg-cyan-600 shadow-[0_0_12px_rgba(8,145,178,0.5)]' : 'bg-slate-200'} border-4 border-white`} />
-
-                                                            <div className="space-y-6">
-                                                                <div className="flex items-center gap-3 opacity-40">
-                                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isAssistant ? 'text-cyan-700' : 'text-slate-500'}`}>
-                                                                        {isAssistant ? 'AI Specialist Findings' : 'Technician Inquiry'}
-                                                                    </span>
-                                                                    <div className="w-1.4 h-1.5 bg-slate-300 rounded-full" />
-                                                                    <span className="text-[9px] font-bold tabular-nums text-slate-400">{m.timestamp.toLocaleString()}</span>
-                                                                </div>
-
-                                                                <div className="prose prose-slate max-w-none">
-                                                                    {m.content.split('\n').map((line, i) => {
-                                                                        const text = line.trim();
-                                                                        if (!text) return null;
-
-                                                                        const isImportant = text.length < 100 && (text.includes('###') || text.includes('**'));
-                                                                        const cleanText = text.replace(/#{1,6}\s?/g, '').replace(/\*\*/g, '').replace(/\*/g, '');
-
-                                                                        if (isImportant) {
-                                                                            return (
-                                                                                <h4 key={i} className="text-slate-950 font-black uppercase text-xs tracking-widest mb-4 mt-8 bg-slate-50 py-2 px-4 rounded-lg border-l-4 border-slate-950">
-                                                                                    {cleanText}
-                                                                                </h4>
-                                                                            );
-                                                                        }
-
-                                                                        if (text.startsWith('-') || text.match(/^\d+\./)) {
-                                                                            return (
-                                                                                <div key={i} className="ml-4 my-4 p-5 rounded-[24px] bg-slate-50 border-2 border-slate-100/50 text-sm text-slate-700 font-bold flex gap-4 shadow-sm border-l-cyan-600/50 border-l-4">
-                                                                                    <span className="text-cyan-600 font-black">›</span>
-                                                                                    <span className="leading-relaxed">{cleanText.replace(/^[- \d.]+\s?/, '')}</span>
-                                                                                </div>
-                                                                            );
-                                                                        }
-
-                                                                        return <p key={i} className="text-[14.5px] text-slate-700 leading-relaxed font-semibold mb-4 tracking-tight">{cleanText}</p>;
-                                                                    })}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
-                                    </div>
-
-                                    {/* Technician Notes Section - ALWAYS ON OWN PAGE IF END */}
-                                    <div className="avoid-break pt-16 border-t-2 border-slate-100">
-                                        <div className="flex justify-between items-end mb-8">
-                                            <div>
-                                                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-[0.3em] mb-2">Technician Final Authorization</h4>
-                                                <p className="text-xs text-slate-400 font-bold italic">Verification of automated diagnostic findings and physical inspection results.</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Authorization Code</div>
-                                                <div className="text-xs font-black text-slate-400 border border-slate-200 px-3 py-1 rounded-full uppercase tracking-tighter">SIG_PENDING_UX</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-8">
-                                            <div className="h-40 border-2 border-dashed border-slate-200 rounded-[32px] p-8 flex flex-col justify-between bg-slate-50/30">
-                                                <span className="text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">Additional Shop Notes</span>
-                                                <div className="flex gap-4">
-                                                    <div className="w-16 h-[2px] bg-slate-100" />
-                                                    <div className="w-16 h-[2px] bg-slate-100" />
-                                                    <div className="w-16 h-[2px] bg-slate-100" />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-12 pt-8">
-                                                <div className="border-t-2 border-slate-900 pt-4 relative group">
-                                                    <div className="text-[10px] font-black text-slate-950 uppercase tracking-[0.3em]">Senior Diagnostic Engineer</div>
-                                                    <div className="text-[9px] text-slate-400 font-bold uppercase mt-1">Full Signature & Date</div>
-                                                    <div className="absolute -top-12 left-4 text-3xl font-serif text-slate-100 select-none group-hover:text-slate-200 transition-colors italic opacity-50">Verified</div>
-                                                </div>
-                                                <div className="border-t-2 border-slate-900 pt-4 relative">
-                                                    <div className="text-[10px] font-black text-slate-950 uppercase tracking-[0.3em]">Vehicle Owner Approval</div>
-                                                    <div className="text-[9px] text-slate-400 font-bold uppercase mt-1">Confirmed Receipt of Analysis</div>
-                                                    <div className="absolute -top-12 left-4 opacity-10">
-                                                        <ShieldAlert className="w-10 h-10 text-slate-950" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Professional Footer */}
-                                    <div className="mt-20 pt-10 border-t border-slate-100 flex flex-col items-center gap-6 text-center">
-                                        <div className="flex gap-16 items-center">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Neural Analysis</span>
-                                                <span className="text-[10px] font-black text-slate-950">99.2% Confidence</span>
-                                            </div>
-                                            <CircuitoLogo className="w-8 h-8 opacity-20" />
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Station State</span>
-                                                <span className="text-[10px] font-black text-slate-950 uppercase tracking-tighter">Certified 2026</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-[9px] text-slate-400 font-bold italic max-w-md leading-relaxed">
-                                            This document represents a digital snapshot of internal vehicle computations. Findings derived from real-time CAN/OBDII telemetry processed via Circuito AI Diagnostic Specialist engine.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
 
             {/* CONNECTION SELECTOR MODAL */}
             <AnimatePresence>
@@ -991,7 +709,7 @@ export default function DiagnosticPage() {
 
                                 <div className="space-y-4">
                                     <button
-                                        onClick={handleSerialConnect}
+                                        onClick={connectDevice}
                                         className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-cyan-primary/50 hover:bg-cyan-primary/5 transition-all text-left flex items-center gap-6"
                                     >
                                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/20 transition-colors">
@@ -1004,7 +722,7 @@ export default function DiagnosticPage() {
                                     </button>
 
                                     <button
-                                        onClick={handleBluetoothConnect}
+                                        onClick={connectBluetooth}
                                         className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-purple-ai/50 hover:bg-purple-ai/5 transition-all text-left flex items-center gap-6"
                                     >
                                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-purple-ai/20 transition-colors">
