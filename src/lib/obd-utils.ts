@@ -16,27 +16,31 @@ export const OBD_SERVICES = {
     PERMANENT_DTC: '0A',
 };
 
-import { MODE01_PIDS, OBD_FORMULAS } from '@/config/obd-pids';
+import { MODE01_PIDS, MODE09_PIDS, OBD_FORMULAS } from '@/config/obd-pids';
 
 /**
  * Decodes the raw hexadecimal response from an ELM327/OBDII adapter
  */
-export function decodeOBDResponse(pid: string, bytes: string[]): { value: number | string; unit: string; label: string } | null {
-    const pidConfig = MODE01_PIDS[pid];
+export function decodeOBDResponse(pid: string, bytes: string[], mode: string = '01'): { value: number | string; unit: string; label: string } | null {
+    const config = mode === '01' ? MODE01_PIDS : MODE09_PIDS;
+    const pidConfig = config[pid];
     if (!pidConfig) return null;
 
     // Convert hex strings to numbers
     const values = bytes.map(b => parseInt(b, 16));
 
-    // Check if we have enough bytes
-    if (values.length < pidConfig.bytes) return null;
+    // Mode 09 (VIN) often has variable length or headers, we might need to be more flexible
+    if (mode === '01' && values.length < pidConfig.bytes) return null;
 
-    const formula = OBD_FORMULAS[pid];
+    // For VIN, use the 'VIN' formula specifically
+    const formulaKey = mode === '09' && pid === '02' ? 'VIN' : pid;
+    const formula = OBD_FORMULAS[formulaKey];
+
     if (formula) {
         return {
             value: formula(values),
             unit: pidConfig.unit || '',
-            label: pidConfig.description.split(':')[0].split('—')[0].trim() // Clean up long descriptions
+            label: pidConfig.description.split(':')[0].split('—')[0].trim()
         };
     }
 
@@ -72,7 +76,7 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
         };
     }
 
-    // 2. Handle Service 01 Responses (41 XX ...)
+    // 2. Handle Service 01 Responses (41 XX ...) - Live Data
     if (cleanLine.startsWith('41')) {
         const pid = cleanLine.substring(2, 4);
         const bytes = [];
@@ -80,7 +84,7 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
             bytes.push(cleanLine.substring(i, i + 2));
         }
 
-        const decoded = decodeOBDResponse(pid, bytes);
+        const decoded = decodeOBDResponse(pid, bytes, '01');
         if (decoded) {
             const key = Object.keys(MODE01_PIDS).find(
                 k => MODE01_PIDS[k].pid === pid
@@ -88,6 +92,20 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
             if (key) {
                 return { key, data: decoded };
             }
+        }
+    }
+
+    // 3. Handle Service 09 Responses (49 XX ...) - Vehicle Info
+    if (cleanLine.startsWith('49')) {
+        const pid = cleanLine.substring(2, 4);
+        const bytes = [];
+        for (let i = 4; i < cleanLine.length; i += 2) {
+            bytes.push(cleanLine.substring(i, i + 2));
+        }
+
+        const decoded = decodeOBDResponse(pid, bytes, '09');
+        if (decoded) {
+            return { key: 'VEHICLE_INFO_' + pid, data: decoded };
         }
     }
 

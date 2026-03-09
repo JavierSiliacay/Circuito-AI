@@ -336,9 +336,19 @@ export default function DiagnosticPage() {
                     {/* THE GIANT TERMINAL AREA */}
                     <div className={`flex-1 flex flex-col min-h-0 min-w-0 bg-[#020617] border-white/5 shadow-inner relative ${isSidebarOpen && isMobile ? 'hidden lg:flex' : 'flex'}`}>
                         <div className="h-10 border-b border-white/5 flex items-center px-4 justify-between bg-white/[0.02]">
-                            <div className="flex items-center gap-2">
-                                <TerminalIcon className="w-3.5 h-3.5 text-cyan-primary" />
-                                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Telemetry Stream</span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <TerminalIcon className="w-3.5 h-3.5 text-cyan-primary" />
+                                    <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Live Telemetry Stream</span>
+                                </div>
+                                {liveReadings['VEHICLE_INFO_02'] && (
+                                    <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20">
+                                        <div className="w-1 h-1 rounded-full bg-cyan-primary animate-pulse" />
+                                        <span className="text-[9px] font-black text-cyan-primary uppercase tracking-widest leading-none">
+                                            Vehicle ID: {String(liveReadings['VEHICLE_INFO_02'].value)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
@@ -389,62 +399,64 @@ export default function DiagnosticPage() {
                                                 <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest italic opacity-40">Polling high-speed CAN traffic...</span>
                                             </div>
                                         ) : (
-                                            Object.entries(liveReadings).map(([key, data]) => {
-                                                const isRPM = key === 'RPM';
-                                                const isVoltage = key === 'VOLTAGE';
-                                                const isSpeed = key === 'SPEED';
-                                                const isTemp = key === 'COOLANT_TEMP';
+                                            Object.entries(liveReadings)
+                                                .filter(([key]) => !key.startsWith('VEHICLE_INFO_'))
+                                                .map(([key, data]) => {
+                                                    const isRPM = key === 'RPM';
+                                                    const isVoltage = key === 'VOLTAGE';
+                                                    const isSpeed = key === 'SPEED';
+                                                    const isTemp = key === 'COOLANT_TEMP';
 
-                                                return (
-                                                    <motion.div
-                                                        key={key}
-                                                        layout
-                                                        initial={{ scale: 0.9, opacity: 0, y: 10 }}
-                                                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                                                        className={`relative overflow-hidden bg-[#0D121F] border ${isRPM ? 'border-cyan-primary/30 shadow-[0_0_20px_rgba(34,211,238,0.1)]' : 'border-white/5'} rounded-[24px] p-4 flex flex-col gap-1.5 hover:border-cyan-primary/50 transition-all group`}
-                                                    >
-                                                        {/* Background Accent */}
-                                                        <div className={`absolute top-0 right-0 w-24 h-24 blur-[40px] opacity-[0.05] pointer-events-none ${isRPM ? 'bg-cyan-primary' : isTemp ? 'bg-red-500' : 'bg-white'}`} />
+                                                    return (
+                                                        <motion.div
+                                                            key={key}
+                                                            layout
+                                                            initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                                                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                                                            className={`relative overflow-hidden bg-[#0D121F] border ${isRPM ? 'border-cyan-primary/30 shadow-[0_0_20px_rgba(34,211,238,0.1)]' : 'border-white/5'} rounded-[24px] p-4 flex flex-col gap-1.5 hover:border-cyan-primary/50 transition-all group`}
+                                                        >
+                                                            {/* Background Accent */}
+                                                            <div className={`absolute top-0 right-0 w-24 h-24 blur-[40px] opacity-[0.05] pointer-events-none ${isRPM ? 'bg-cyan-primary' : isTemp ? 'bg-red-500' : 'bg-white'}`} />
 
-                                                        <div className="flex items-center justify-between relative z-10">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`p-1.5 rounded-lg ${isRPM ? 'bg-cyan-primary/10 text-cyan-primary' : 'bg-white/5 text-text-muted'} group-hover:scale-110 transition-transform`}>
-                                                                    {isRPM ? <Gauge className="w-3.5 h-3.5" /> :
-                                                                        isTemp || key === 'ENGINE_OIL_TEMP' ? <Thermometer className="w-3.5 h-3.5" /> :
-                                                                            isVoltage ? <Zap className="w-3.5 h-3.5" /> :
-                                                                                key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
-                                                                                    key === 'MAF' ? <Wind className="w-3.5 h-3.5" /> :
-                                                                                        key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
-                                                                                            <Activity className="w-3.5 h-3.5" />}
+                                                            <div className="flex items-center justify-between relative z-10">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={`p-1.5 rounded-lg ${isRPM ? 'bg-cyan-primary/10 text-cyan-primary' : 'bg-white/5 text-text-muted'} group-hover:scale-110 transition-transform`}>
+                                                                        {isRPM ? <Gauge className="w-3.5 h-3.5" /> :
+                                                                            isTemp || key === 'ENGINE_OIL_TEMP' ? <Thermometer className="w-3.5 h-3.5" /> :
+                                                                                isVoltage ? <Zap className="w-3.5 h-3.5" /> :
+                                                                                    key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
+                                                                                        key === 'MAF' ? <Wind className="w-3.5 h-3.5" /> :
+                                                                                            key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
+                                                                                                <Activity className="w-3.5 h-3.5" />}
+                                                                    </div>
+                                                                    <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-white transition-colors">{data.label}</span>
                                                                 </div>
-                                                                <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-white transition-colors">{data.label}</span>
+                                                                <ArrowUpRight className="w-3 h-3 text-white/10 group-hover:text-cyan-primary transition-colors" />
                                                             </div>
-                                                            <ArrowUpRight className="w-3 h-3 text-white/10 group-hover:text-cyan-primary transition-colors" />
-                                                        </div>
 
-                                                        <div className="flex items-baseline gap-1.5 mt-1 relative z-10">
-                                                            <span className={`text-2xl font-black tracking-tighter tabular-nums ${isRPM ? 'text-cyan-primary' : 'text-white'}`}>
-                                                                {data.value}
-                                                            </span>
-                                                            <span className="text-[10px] font-black text-text-muted uppercase opacity-60">{data.unit}</span>
-                                                        </div>
+                                                            <div className="flex items-baseline gap-1.5 mt-1 relative z-10">
+                                                                <span className={`text-2xl font-black tracking-tighter tabular-nums ${isRPM ? 'text-cyan-primary' : 'text-white'}`}>
+                                                                    {data.value}
+                                                                </span>
+                                                                <span className="text-[10px] font-black text-text-muted uppercase opacity-60">{data.unit}</span>
+                                                            </div>
 
-                                                        {/* Dynamic Progress Bar */}
-                                                        <div className="w-full h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden relative z-10">
-                                                            <motion.div
-                                                                initial={{ width: 0 }}
-                                                                animate={{
-                                                                    width: isRPM ? `${Math.min((Number(data.value) / 7000) * 100, 100)}%` :
-                                                                        isSpeed ? `${Math.min((Number(data.value) / 220) * 100, 100)}%` :
-                                                                            isTemp ? `${Math.min((Number(data.value) / 120) * 100, 100)}%` : '40%'
-                                                                }}
-                                                                className={`h-full shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all ${isTemp && Number(data.value) > 100 ? 'bg-red-500' : 'bg-cyan-primary'
-                                                                    }`}
-                                                            />
-                                                        </div>
-                                                    </motion.div>
-                                                );
-                                            })
+                                                            {/* Dynamic Progress Bar */}
+                                                            <div className="w-full h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden relative z-10">
+                                                                <motion.div
+                                                                    initial={{ width: 0 }}
+                                                                    animate={{
+                                                                        width: isRPM ? `${Math.min((Number(data.value) / 7000) * 100, 100)}%` :
+                                                                            isSpeed ? `${Math.min((Number(data.value) / 220) * 100, 100)}%` :
+                                                                                isTemp ? `${Math.min((Number(data.value) / 120) * 100, 100)}%` : '40%'
+                                                                    }}
+                                                                    className={`h-full shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all ${isTemp && Number(data.value) > 100 ? 'bg-red-500' : 'bg-cyan-primary'
+                                                                        }`}
+                                                                />
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })
                                         )}
                                     </div>
                                 </motion.div>
@@ -559,69 +571,81 @@ export default function DiagnosticPage() {
                                                 </div>
                                             ) : (
                                                 <AnimatePresence initial={false} mode="popLayout">
-                                                    {diagnosticHistory.map((msg, idx) => (
-                                                        <motion.div
-                                                            key={msg.id}
-                                                            initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
-                                                        >
-                                                            <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
-                                                                ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
-                                                                : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
-                                                                }`}>
+                                                    {diagnosticHistory
+                                                        .filter(m => {
+                                                            const lines = m.content.split('\n');
+                                                            if (lines.length > 5) {
+                                                                const telemetryPatterns = ['[BLE]', '[SCAN]', '[SERIAL]', '[USB]'];
+                                                                const telemetryLines = lines.filter(l =>
+                                                                    telemetryPatterns.some(p => l.includes(p)) && l.includes('[') && l.includes(']')
+                                                                );
+                                                                if (telemetryLines.length > lines.length * 0.6) return false;
+                                                            }
+                                                            return true;
+                                                        })
+                                                        .map((msg, idx) => (
+                                                            <motion.div
+                                                                key={msg.id}
+                                                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
+                                                            >
+                                                                <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
+                                                                    ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
+                                                                    : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
+                                                                    }`}>
 
-                                                                {msg.role === 'assistant' && (
-                                                                    <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
-                                                                        <CircuitoLogo className="w-10 h-10" />
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="prose prose-invert prose-sm max-w-none">
-                                                                    {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
-                                                                        <div className="flex items-center gap-2 py-1">
-                                                                            <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
-                                                                            <div className="flex gap-1 items-baseline">
-                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
-                                                                            </div>
+                                                                    {msg.role === 'assistant' && (
+                                                                        <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
+                                                                            <CircuitoLogo className="w-10 h-10" />
                                                                         </div>
-                                                                    ) : (
-                                                                        msg.content.split('\n').map((line, i) => {
-                                                                            if (line.startsWith('###')) {
-                                                                                return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
-                                                                            }
-                                                                            if (line.startsWith('*')) {
-                                                                                return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
-                                                                            }
-                                                                            return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
-                                                                                {line.replace(/^- /, '')}
-                                                                            </p>;
-                                                                        })
                                                                     )}
+
+                                                                    <div className="prose prose-invert prose-sm max-w-none">
+                                                                        {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
+                                                                            <div className="flex items-center gap-2 py-1">
+                                                                                <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
+                                                                                <div className="flex gap-1 items-baseline">
+                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            msg.content.split('\n').map((line, i) => {
+                                                                                if (line.startsWith('###')) {
+                                                                                    return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
+                                                                                }
+                                                                                if (line.startsWith('*')) {
+                                                                                    return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
+                                                                                }
+                                                                                return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
+                                                                                    {line.replace(/^- /, '')}
+                                                                                </p>;
+                                                                            })
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                            <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                                {msg.role === 'assistant' && (
-                                                                    <button
-                                                                        onClick={handleOpenReport}
-                                                                        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
-                                                                    >
-                                                                        <Printer className="w-2.5 h-2.5" />
-                                                                        Full Report
-                                                                    </button>
-                                                                )}
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                                                                    {msg.role === 'user' ? 'Technician' : 'Specialist'}
-                                                                </span>
-                                                                <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                                <span className="text-[9px] font-bold text-text-muted tabular-nums">
-                                                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                                                </span>
-                                                            </div>
-                                                        </motion.div>
-                                                    ))}
+                                                                <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                                    {msg.role === 'assistant' && (
+                                                                        <button
+                                                                            onClick={handleOpenReport}
+                                                                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
+                                                                        >
+                                                                            <Printer className="w-2.5 h-2.5" />
+                                                                            Full Report
+                                                                        </button>
+                                                                    )}
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                                                                        {msg.role === 'user' ? 'Technician' : 'Specialist'}
+                                                                    </span>
+                                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                                    <span className="text-[9px] font-bold text-text-muted tabular-nums">
+                                                                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                            </motion.div>
+                                                        ))}
                                                 </AnimatePresence>
                                             )}
                                             <div ref={chatEndRef} className="h-8" />

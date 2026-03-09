@@ -259,7 +259,21 @@ export default function ReportPage() {
                         </h3>
                         <div className="space-y-16">
                             {data.diagnosticHistory
-                                .filter(m => m.id !== 'welcome')
+                                .filter(m => {
+                                    if (m.id === 'welcome') return false;
+
+                                    // Heuristic: Filter out raw telemetry dumps
+                                    const lines = m.content.split('\n');
+                                    if (lines.length > 5) {
+                                        const telemetryPatterns = ['[BLE]', '[SCAN]', '[SERIAL]', '[USB]'];
+                                        const telemetryLines = lines.filter(l =>
+                                            telemetryPatterns.some(p => l.includes(p)) && l.includes('[') && l.includes(']')
+                                        );
+                                        // If more than 60% of lines are logs, hide it from findings
+                                        if (telemetryLines.length > lines.length * 0.6) return false;
+                                    }
+                                    return true;
+                                })
                                 .map((m, mIdx) => {
                                     const isAssistant = m.role === 'assistant';
                                     return (

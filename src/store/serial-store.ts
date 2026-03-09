@@ -110,9 +110,21 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         };
 
         try {
+            log('Inquiring Vehicle Identity (Service 0902)...');
+            await get().sendData(activeDevice.id, '0902\r');
+            await new Promise(r => setTimeout(r, 1000));
+
+            log('Querying Vehicle Odometer (01A6)...');
+            await get().sendData(activeDevice.id, '01A6\r');
+            await new Promise(r => setTimeout(r, 1000));
+
             log('Requesting Stored Trouble Codes (Service 03)...');
             await get().sendData(activeDevice.id, '03\r');
             await new Promise(r => setTimeout(r, 1500));
+
+            log('Requesting Mileage since cleared (0131)...');
+            await get().sendData(activeDevice.id, '0131\r');
+            await new Promise(r => setTimeout(r, 1000));
 
             log('Requesting Pending Trouble Codes (Service 07)...');
             await get().sendData(activeDevice.id, '07\r');

@@ -24,11 +24,13 @@ export const MODE01_PIDS: Record<string, OBDPID> = {
     "1F": { "pid": "1F", "bytes": 2, "description": "Run time since engine start", "unit": "sec" },
     "21": { "pid": "21", "bytes": 2, "description": "Distance traveled with MIL on", "unit": "km" },
     "2F": { "pid": "2F", "bytes": 1, "description": "Fuel Level Input", "unit": "%" },
+    "31": { "pid": "31", "bytes": 2, "description": "Distance traveled since codes cleared", "unit": "km" },
     "33": { "pid": "33", "bytes": 1, "description": "Barometric pressure", "unit": "kPa" },
     "42": { "pid": "42", "bytes": 2, "description": "Control module voltage", "unit": "V" },
     "43": { "pid": "43", "bytes": 2, "description": "Absolute load value", "unit": "%" },
     "46": { "pid": "46", "bytes": 1, "description": "Ambient air temperature", "unit": "°C" },
     "5C": { "pid": "5C", "bytes": 1, "description": "Engine oil temperature", "unit": "°C" },
+    "A6": { "pid": "A6", "bytes": 4, "description": "Odometer", "unit": "km" },
 };
 
 export const MODE09_PIDS: Record<string, OBDPID> = {
@@ -53,10 +55,22 @@ export const OBD_FORMULAS: Record<string, (bytes: number[]) => number | string> 
     "0E": (bytes) => (bytes[0] - 128) / 2,
     "1F": (bytes) => bytes[0] * 256 + bytes[1],
     "21": (bytes) => bytes[0] * 256 + bytes[1],
+    "31": (bytes) => bytes[0] * 256 + bytes[1],
     "2F": (bytes) => Math.round((bytes[0] * 100) / 255),
     "33": (bytes) => bytes[0],
     "42": (bytes) => Number(((bytes[0] * 256 + bytes[1]) / 1000).toFixed(2)),
     "43": (bytes) => Math.round((bytes[0] * 256 + bytes[1]) * 100 / 255),
     "46": (bytes) => bytes[0] - 40,
     "5C": (bytes) => bytes[0] - 40,
+    "A6": (bytes) => Number(((bytes[0] * 16777216 + bytes[1] * 65536 + bytes[2] * 256 + bytes[3]) / 10).toFixed(1)),
+    // Mode 09 VIN Decoder
+    "VIN": (bytes) => {
+        // Skip first byte if it's the message count or similar depending on ELM protocol
+        // Standard ISO 15765-4 returns bytes starting from offset
+        return bytes
+            .filter(b => b > 31 && b < 127) // Only printable ASCII
+            .map(b => String.fromCharCode(b))
+            .join('')
+            .trim();
+    }
 };
