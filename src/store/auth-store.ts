@@ -36,7 +36,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user) {
-            const { data: profile } = await getProfile(session.user.id);
+            const { data: profile, error } = await getProfile(session.user.id);
+
+            if (error && error.code !== 'PGRST116') { // PGRST116 is 'no rows found'
+                console.error('[AuthStore] Profile fetch error:', error);
+            }
+
             const adminEmails = [
                 'siliacay.javier@gmail.com',
                 'javiersiliacaysiliacay1234@gmail.com',
@@ -45,11 +50,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             set({
                 user: session.user,
-                profile: profile as Profile,
+                profile: (profile as Profile) || null,
                 isAdmin: adminEmails.map(e => e.toLowerCase()).includes(session.user.email?.toLowerCase() || ''),
                 isLoading: false
             });
-        } else {
+        }
+        else {
             set({ user: null, profile: null, isAdmin: false, isLoading: false });
         }
     },
