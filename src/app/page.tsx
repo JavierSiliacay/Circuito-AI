@@ -366,13 +366,18 @@ export default function Home() {
   // Persistence: Save to Supabase (Cloud Sync)
   useEffect(() => {
     const syncToCloud = async () => {
+      if (!user) return; // Don't sync if not logged in
+
       // If we have no conversations, we need to clear the cloud too!
       if (conversations.length === 0) {
         const { error } = await supabase
           .from('ai_conversations')
           .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete everything
-        if (error) console.error('Supabase Clear Error:', error);
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('[CloudSync] Clear Error:', error.message || error);
+        }
         return;
       }
 
@@ -383,12 +388,12 @@ export default function Home() {
           conversations.map(convo => ({
             id: convo.id,
             messages: convo.messages,
-            // You can add user_id here once auth is implemented
+            user_id: user.id
           })),
           { onConflict: 'id' }
         );
 
-      if (error) console.error('Supabase Sync Error:', error);
+      if (error) console.error('[CloudSync] Sync Error:', error.message || error);
     };
 
     const timer = setTimeout(syncToCloud, 2000); // Debounce sync
@@ -398,12 +403,14 @@ export default function Home() {
   // Persistence: Load from Supabase on start if local is empty
   useEffect(() => {
     const loadFromCloud = async () => {
+      if (!user) return; // Need user to load their data
       const local = localStorage.getItem('circuito_convos');
-      if (local) return; // Prioritize local for speed
+      if (local && JSON.parse(local).length > 0) return; // Prioritize local for speed if not empty
 
       const { data, error } = await supabase
         .from('ai_conversations')
         .select('*')
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
       if (!error && data) {
@@ -421,7 +428,7 @@ export default function Home() {
     };
 
     loadFromCloud();
-  }, []);
+  }, [user]);
 
   const [isMobile, setIsMobile] = useState(false);
 

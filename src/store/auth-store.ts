@@ -38,8 +38,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (session?.user) {
             const { data: profile, error } = await getProfile(session.user.id);
 
-            if (error && error.code !== 'PGRST116') { // PGRST116 is 'no rows found'
-                console.error('[AuthStore] Profile fetch error:', error);
+            // Log only actual errors, ignore "no rows found" (PGRST116) as it's expected for new users
+            if (error && error.code !== 'PGRST116') {
+                console.warn('[AuthStore] Profile fetch notice:', error.message || error);
             }
 
             const adminEmails = [
