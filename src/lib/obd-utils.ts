@@ -32,19 +32,47 @@ export function decodeOBDResponse(pid: string, bytes: string[], mode: string = '
     // Mode 09 (VIN) often has variable length or headers, we might need to be more flexible
     if (mode === '01' && values.length < pidConfig.bytes) return null;
 
-    // For VIN, use the 'VIN' formula specifically
-    const formulaKey = mode === '09' && pid === '02' ? 'VIN' : pid;
-    const formula = OBD_FORMULAS[formulaKey];
+    let decodedValue: number | string = 0;
 
-    if (formula) {
-        return {
-            value: formula(values),
-            unit: pidConfig.unit || '',
-            label: pidConfig.description.split(':')[0].split('—')[0].trim()
-        };
+    // 1. Check for hardcoded complex formulas first (e.g. VIN)
+    const formulaKey = mode === '09' && pid === '02' ? 'VIN' : pid;
+    const hardcodedFormula = OBD_FORMULAS[formulaKey];
+
+    if (hardcodedFormula) {
+        decodedValue = hardcodedFormula(values);
+    }
+    // 2. Linear Conversion Engine (AndrOBD style)
+    else {
+        // Concatenate bytes into a single raw value (Big Endian)
+        let raw = 0;
+        for (let i = 0; i < pidConfig.bytes; i++) {
+            raw = (raw << 8) | (values[i] || 0);
+        }
+
+        // Apply bit-level masking if defined
+        if (pidConfig.bitMask !== undefined) {
+            raw = raw & pidConfig.bitMask;
+        }
+        if (pidConfig.bitOffset !== undefined && pidConfig.bitLength !== undefined) {
+            raw = (raw >> pidConfig.bitOffset) & ((1 << pidConfig.bitLength) - 1);
+        }
+
+        // Apply Linear Math: (raw * FACT / DIV) + OFFS
+        const fact = pidConfig.fact ?? 1;
+        const div = pidConfig.div ?? 1;
+        const offs = pidConfig.offs ?? 0;
+
+        const result = (raw * fact / div) + offs;
+
+        // Format based on precision
+        decodedValue = Number.isInteger(result) ? result : Number(result.toFixed(2));
     }
 
-    return null;
+    return {
+        value: decodedValue,
+        unit: pidConfig.unit || '',
+        label: pidConfig.description.split(':')[0].split('—')[0].trim()
+    };
 }
 
 /**

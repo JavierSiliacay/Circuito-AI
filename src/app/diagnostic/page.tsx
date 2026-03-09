@@ -352,7 +352,14 @@ export default function DiagnosticPage() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => performFullScan()}
+                                    onClick={async () => {
+                                        try {
+                                            await performFullScan();
+                                            handleOpenReport();
+                                        } catch (err) {
+                                            console.error('Auto-scan failed:', err);
+                                        }
+                                    }}
                                     disabled={isAnalyzing || isScanning || serialOutput.length === 0}
                                     className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all disabled:opacity-30"
                                 >
@@ -426,8 +433,9 @@ export default function DiagnosticPage() {
                                                                                 isVoltage ? <Zap className="w-3.5 h-3.5" /> :
                                                                                     key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
                                                                                         key === 'MAF' ? <Wind className="w-3.5 h-3.5" /> :
-                                                                                            key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
-                                                                                                <Activity className="w-3.5 h-3.5" />}
+                                                                                            key === 'A6' || key.includes('DISTANCE') ? <Clock className="w-3.5 h-3.5" /> :
+                                                                                                key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
+                                                                                                    <Activity className="w-3.5 h-3.5" />}
                                                                     </div>
                                                                     <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-white transition-colors">{data.label}</span>
                                                                 </div>
@@ -571,81 +579,69 @@ export default function DiagnosticPage() {
                                                 </div>
                                             ) : (
                                                 <AnimatePresence initial={false} mode="popLayout">
-                                                    {diagnosticHistory
-                                                        .filter(m => {
-                                                            const lines = m.content.split('\n');
-                                                            if (lines.length > 5) {
-                                                                const telemetryPatterns = ['[BLE]', '[SCAN]', '[SERIAL]', '[USB]'];
-                                                                const telemetryLines = lines.filter(l =>
-                                                                    telemetryPatterns.some(p => l.includes(p)) && l.includes('[') && l.includes(']')
-                                                                );
-                                                                if (telemetryLines.length > lines.length * 0.6) return false;
-                                                            }
-                                                            return true;
-                                                        })
-                                                        .map((msg, idx) => (
-                                                            <motion.div
-                                                                key={msg.id}
-                                                                initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
-                                                            >
-                                                                <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
-                                                                    ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
-                                                                    : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
-                                                                    }`}>
+                                                    {diagnosticHistory.map((msg, idx) => (
+                                                        <motion.div
+                                                            key={msg.id}
+                                                            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-6`}
+                                                        >
+                                                            <div className={`max-w-[90%] p-5 rounded-3xl text-[13px] font-medium leading-[1.6] shadow-2xl relative group ${msg.role === 'user'
+                                                                ? 'bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary rounded-br-none'
+                                                                : 'bg-white/5 border border-white/10 text-slate-200 rounded-bl-none'
+                                                                }`}>
 
-                                                                    {msg.role === 'assistant' && (
-                                                                        <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
-                                                                            <CircuitoLogo className="w-10 h-10" />
-                                                                        </div>
-                                                                    )}
-
-                                                                    <div className="prose prose-invert prose-sm max-w-none">
-                                                                        {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
-                                                                            <div className="flex items-center gap-2 py-1">
-                                                                                <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
-                                                                                <div className="flex gap-1 items-baseline">
-                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                                                                    <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
-                                                                                </div>
-                                                                            </div>
-                                                                        ) : (
-                                                                            msg.content.split('\n').map((line, i) => {
-                                                                                if (line.startsWith('###')) {
-                                                                                    return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
-                                                                                }
-                                                                                if (line.startsWith('*')) {
-                                                                                    return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
-                                                                                }
-                                                                                return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
-                                                                                    {line.replace(/^- /, '')}
-                                                                                </p>;
-                                                                            })
-                                                                        )}
+                                                                {msg.role === 'assistant' && (
+                                                                    <div className="absolute -left-6 -top-2 w-6 h-6 flex items-center justify-center -rotate-12 group-hover:rotate-0 transition-transform">
+                                                                        <CircuitoLogo className="w-10 h-10" />
                                                                     </div>
-                                                                </div>
-                                                                <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                                                    {msg.role === 'assistant' && (
-                                                                        <button
-                                                                            onClick={handleOpenReport}
-                                                                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
-                                                                        >
-                                                                            <Printer className="w-2.5 h-2.5" />
-                                                                            Full Report
-                                                                        </button>
+                                                                )}
+
+                                                                <div className="prose prose-invert prose-sm max-w-none">
+                                                                    {msg.role === 'assistant' && (msg.content === '' || msg.content === '▮') && isAnalyzing ? (
+                                                                        <div className="flex items-center gap-2 py-1">
+                                                                            <span className="text-cyan-primary font-bold tracking-tight">Circuito is analyzing</span>
+                                                                            <div className="flex gap-1 items-baseline">
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                                                                <span className="w-1 h-1 bg-cyan-primary rounded-full animate-bounce" />
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        msg.content.split('\n').map((line, i) => {
+                                                                            if (line.startsWith('###')) {
+                                                                                return <h4 key={i} className="text-white font-black uppercase text-[11px] tracking-widest mt-2 mb-3">{line.replace('###', '')}</h4>;
+                                                                            }
+                                                                            if (line.startsWith('*')) {
+                                                                                return <span key={i} className="block text-cyan-primary/80 italic my-1 font-bold">{line.replace(/\*/g, '')}</span>;
+                                                                            }
+                                                                            return <p key={i} className={`mb-3 last:mb-0 ${line.startsWith('-') ? 'pl-4 relative before:content-[""] before:absolute before:left-0 before:top-2.5 before:w-1.5 before:h-[2px] before:bg-cyan-primary' : ''}`}>
+                                                                                {line.replace(/^- /, '')}
+                                                                            </p>;
+                                                                        })
                                                                     )}
-                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
-                                                                        {msg.role === 'user' ? 'Technician' : 'Specialist'}
-                                                                    </span>
-                                                                    <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                                    <span className="text-[9px] font-bold text-text-muted tabular-nums">
-                                                                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                                                    </span>
                                                                 </div>
-                                                            </motion.div>
-                                                        ))}
+                                                            </div>
+                                                            <div className={`flex items-center gap-1.5 mt-2.5 px-3 opacity-40 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                                                {msg.role === 'assistant' && (
+                                                                    <button
+                                                                        onClick={handleOpenReport}
+                                                                        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20 text-[9px] font-black text-cyan-primary uppercase tracking-widest hover:bg-cyan-primary/20 transition-all mr-2"
+                                                                    >
+                                                                        <Printer className="w-2.5 h-2.5" />
+                                                                        Full Report
+                                                                    </button>
+                                                                )}
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">
+                                                                    {msg.role === 'user' ? 'Technician' : 'Specialist'}
+                                                                </span>
+                                                                <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                                <span className="text-[9px] font-bold text-text-muted tabular-nums">
+                                                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                        </motion.div>
+                                                    ))}
                                                 </AnimatePresence>
                                             )}
                                             <div ref={chatEndRef} className="h-8" />

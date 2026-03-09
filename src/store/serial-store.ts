@@ -100,6 +100,8 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             throw new Error('Connect a device first to perform a scan.');
         }
 
+        // 🛑 Pause polling during scan to avoid flooding the buffer
+        get().stopLivePolling();
         set({ isScanning: true });
 
         const timestamp = () => `[${new Date().toLocaleTimeString()}]`;
@@ -140,7 +142,12 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
             // Trigger AI analysis with a specific prompt
-            await get().analyzeDiagnostic("I've finished a full hardware scan. Please decode any DTCs found and give me a vehicle health summary based on these readings.");
+            await get().analyzeDiagnostic("I've finished a full hardware scan. Please identify the vehicle unit/model (VIN/ECU), decode any DTCs found, and give me a vehicle health summary based on these readings.");
+
+            // 🔄 Resume polling after scan
+            if (activeDevice) {
+                get().startLivePolling(activeDevice.id);
+            }
         } catch (err) {
             console.error('Full scan failed:', err);
             log('Scan Interrupted: ' + (err instanceof Error ? err.message : String(err)));
@@ -214,7 +221,8 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         };
 
         try {
-            const telemetry = state.serialOutput.slice(-70).join('\n');
+            // Increase context buffer to 200 lines to ensure scan results are captured
+            const telemetry = state.serialOutput.slice(-200).join('\n');
 
             // 🚀 Batch initial updates to avoid multiple re-renders or stale state during fetch
             const assistantMsgId = (Date.now() + 1).toString();

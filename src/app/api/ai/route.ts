@@ -220,6 +220,15 @@ export async function POST(request: NextRequest) {
             }
 
             if (context.pins?.length) contextPayload += `\n- Pins: ${context.pins.join(', ')}`;
+
+            if ((context as any).telemetry) {
+                contextPayload += `\n\n📡 LIVE VEHICLE TELEMETRY:\n${(context as any).telemetry}`;
+                contextPayload += `\n\n⚠️ DIAGNOSTIC_DIRECTIVE: 
+                Analyze the telemetry above. Look for OBD2 Service 03/07 responses (43/47), 
+                ELM327 status codes, and Service 01/09 PID data. If you see VIN or DTC hex patterns, 
+                decode them for the user.`;
+            }
+
             systemPrompt += contextPayload;
         }
 
