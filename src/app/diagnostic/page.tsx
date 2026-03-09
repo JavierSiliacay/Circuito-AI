@@ -52,7 +52,11 @@ import { CircuitoLogo } from '@/components/ui/logo';
 
 const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
+import { useAuthStore } from '@/store/auth-store';
+import { supabase } from '@/lib/supabase';
+
 export default function DiagnosticPage() {
+    const { user, profile, isLoading } = useAuthStore();
     const {
         isSupported,
         devices,
@@ -83,6 +87,11 @@ export default function DiagnosticPage() {
     const [isMobile, setIsMobile] = useState(false);
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
+    const [hasMounted, setHasMounted] = useState(false);
+
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
 
     const handleOpenReport = () => {
         const activeDevice = devices.find(d => d.id === useSerialStore.getState().activeDeviceId);
@@ -213,6 +222,64 @@ export default function DiagnosticPage() {
             startResizing();
         };
     }, []);
+
+    if (!isLoading && (!user || !profile?.has_diag_access)) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0D121F] p-8 text-center gap-8">
+                <div className="w-24 h-24 rounded-full bg-red-400/10 flex items-center justify-center border border-red-400/20 shadow-[0_0_40px_rgba(239,68,68,0.1)]">
+                    <ShieldAlert className="w-10 h-10 text-red-500" />
+                </div>
+                <div className="space-y-3 max-w-md">
+                    <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Access Denied</h1>
+                    <p className="text-text-muted leading-relaxed">
+                        The Diagnostic Station is a restricted zone. To access professional vehicle telemetry and AI-assisted troubleshooting, you must first complete your verification.
+                    </p>
+                </div>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                    {!user ? (
+                        <button
+                            onClick={() => window.location.href = '/'}
+                            className="py-4 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl shadow-white/5"
+                        >
+                            Log in to Proceed
+                        </button>
+                    ) : (
+                        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                            <p className="text-[11px] font-bold text-white uppercase opacity-60">
+                                Current Status: {profile?.verification_status?.toUpperCase() || 'NOT SUBMITTED'}
+                            </p>
+                            <button
+                                onClick={async () => {
+                                    if (profile?.verification_status === 'pending') return;
+
+                                    // Reset status to allow re-submission/category change
+                                    const { error } = await supabase
+                                        .from('profiles')
+                                        .update({
+                                            verification_status: null,
+                                            category: null,
+                                            document_url: null
+                                        })
+                                        .eq('id', user.id);
+
+                                    if (!error) {
+                                        await useAuthStore.getState().checkAuth();
+                                        window.location.href = '/';
+                                    }
+                                }}
+                                className="w-full py-3 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[10px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all shadow-[0_0_15px_rgba(34,211,238,0.05)]"
+                            >
+                                {profile?.verification_status === 'pending' ? 'Verification in Progress' : 'Submit Proof for Approval'}
+                            </button>
+                        </div>
+                    )}
+                    <Link href="/" className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] hover:text-white transition-colors">
+                        Return to Hub
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-[100dvh] w-full bg-[#020617] text-white flex flex-col font-sans overflow-hidden select-none print:bg-white print:h-auto print:overflow-visible print:block">
@@ -728,7 +795,7 @@ export default function DiagnosticPage() {
                                                                 </span>
                                                                 <span className="w-1 h-1 rounded-full bg-white/20" />
                                                                 <span className="text-[9px] font-bold text-text-muted tabular-nums">
-                                                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                                    {hasMounted ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}
                                                                 </span>
                                                             </div>
                                                         </motion.div>

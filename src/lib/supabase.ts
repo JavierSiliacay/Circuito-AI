@@ -3,16 +3,21 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Client-side Supabase client (uses anon key — safe for browser)
+// Client-side Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Server-side Supabase client (uses service role key — server only!)
-export function createServiceClient() {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    return createClient(supabaseUrl, serviceRoleKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-    });
-}
+// Helper to get active session
+export const getSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+};
+
+// Helper to get user profile
+export const getProfile = async (userId: string) => {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    return { data, error };
+};
