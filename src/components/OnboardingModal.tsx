@@ -20,7 +20,7 @@ export default function OnboardingModal() {
     const [success, setSuccess] = useState(false);
 
     // Only show if user is logged in, NOT an admin, and profile hasn't been completed
-    const needsOnboarding = user && !isAdmin && (!profile?.category || profile.verification_status === null);
+    const needsOnboarding = user && !isAdmin && (!profile?.category || profile?.verification_status === null);
 
     if (!needsOnboarding) return null;
 
