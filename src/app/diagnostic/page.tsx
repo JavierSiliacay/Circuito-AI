@@ -411,10 +411,10 @@ export default function DiagnosticPage() {
                                             Object.entries(liveReadings)
                                                 .filter(([key]) => !key.startsWith('VEHICLE_INFO_'))
                                                 .map(([key, data]) => {
-                                                    const isRPM = key === 'RPM';
-                                                    const isVoltage = key === 'VOLTAGE';
-                                                    const isSpeed = key === 'SPEED';
-                                                    const isTemp = key === 'COOLANT_TEMP';
+                                                    const isRPM = key === '0C';
+                                                    const isVoltage = key === 'VOLTAGE' || key === '42';
+                                                    const isSpeed = key === '0D';
+                                                    const isTemp = key === '05' || key === '46' || key === '5C';
                                                     const val = Number(data.value);
 
                                                     if (isRPM) {

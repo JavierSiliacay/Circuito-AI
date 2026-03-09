@@ -170,6 +170,14 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             await new Promise(r => setTimeout(r, 500));
             await get().sendData(activeDevice.id, '0104\r'); // Load
 
+            log('Hardware Reset (Returning to Standard Stream)...');
+            await get().sendData(activeDevice.id, 'ATH0\r'); // Headers OFF
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATCAF1\r'); // Auto-Formatting ON
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATSP0\r'); // Back to Auto-Protocol
+            await new Promise(r => setTimeout(r, 1000));
+
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
             // Trigger AI analysis with a specific prompt
