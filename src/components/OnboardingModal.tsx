@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function OnboardingModal() {
-    const { user, profile, checkAuth } = useAuthStore();
+    const { user, profile, checkAuth, isAdmin } = useAuthStore();
     const [isOpen, setIsOpen] = useState(false);
     const [category, setCategory] = useState<'student' | 'enthusiast' | 'mechanic' | null>(null);
     const [file, setFile] = useState<File | null>(null);
@@ -19,8 +19,8 @@ export default function OnboardingModal() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    // Only show if user is logged in but profile hasn't been completed
-    const needsOnboarding = user && (!profile?.category || profile.verification_status === null);
+    // Only show if user is logged in, NOT an admin, and profile hasn't been completed
+    const needsOnboarding = user && !isAdmin && (!profile?.category || profile.verification_status === null);
 
     if (!needsOnboarding) return null;
 

@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({
                 user: session.user,
                 profile: profile as Profile,
-                isAdmin: adminEmails.includes(session.user.email || ''),
+                isAdmin: adminEmails.map(e => e.toLowerCase()).includes(session.user.email?.toLowerCase() || ''),
                 isLoading: false
             });
         } else {
