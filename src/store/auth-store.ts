@@ -57,6 +57,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     signOut: async () => {
         await supabase.auth.signOut();
         set({ user: null, profile: null, isAdmin: false });
+        // Force reload and redirect to home to clear any local state/cache
+        window.location.href = '/';
     },
 
     clearWarning: async () => {
