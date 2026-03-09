@@ -94,7 +94,25 @@ export function decodeDTC(byte1: string, byte2: string): string {
  * High-level parser for ELM327 raw lines
  */
 export function parseOBDLine(line: string): { key: string; data: { value: number | string; unit: string; label: string } } | null {
-    const cleanLine = line.trim().replace(/\s+/g, '');
+    // Clean the line: remove whitespace and potential frame/protocol headers
+    // ELM327 often adds "0:", "1:", etc. for multi-frame or protocol IDs like "7E8"
+    let cleanLine = line.trim().replace(/\s+/g, '').toUpperCase();
+
+    // 🔍 STRIP COMMON PROTOCOL HEADERS
+    // Strip frame numbers (0:, 1:, etc)
+    cleanLine = cleanLine.replace(/^[0-9]:/, '');
+    // Strip ISO 15765-4 PCI (Protocol Control Information) 
+    // e.g. "10 14 49 02..." -> some adapters might keep these
+    if (cleanLine.length > 2 && /^[0-9A-F]{2}/.test(cleanLine)) {
+        // If it looks like a long hex string, we try to find 41 or 49 inside
+        const start41 = cleanLine.indexOf('41');
+        const start49 = cleanLine.indexOf('49');
+        if (start41 !== -1 && (start49 === -1 || start41 < start49)) {
+            cleanLine = cleanLine.substring(start41);
+        } else if (start49 !== -1) {
+            cleanLine = cleanLine.substring(start49);
+        }
+    }
 
     // 1. Handle Battery Voltage (ATRV) -> e.g. "12.4V"
     if (cleanLine.includes('V') && /^\d+\.\d+V$/.test(cleanLine)) {

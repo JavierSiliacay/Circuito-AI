@@ -112,9 +112,16 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         };
 
         try {
+            log('Resetting ELM327 & Detecting Protocol (AT SP 0)...');
+            await get().sendData(activeDevice.id, 'ATZ\r');
+            await new Promise(r => setTimeout(r, 1000));
+            await get().sendData(activeDevice.id, 'ATSP0\r');
+            await new Promise(r => setTimeout(r, 1000));
+
             log('Inquiring Vehicle Identity (Service 0902)...');
             await get().sendData(activeDevice.id, '0902\r');
-            await new Promise(r => setTimeout(r, 1000));
+            // ⏳ Increasing wait time for Nissan multi-frame VIN
+            await new Promise(r => setTimeout(r, 2500));
 
             log('Querying Vehicle Odometer (01A6)...');
             await get().sendData(activeDevice.id, '01A6\r');
@@ -142,7 +149,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
             // Trigger AI analysis with a specific prompt
-            await get().analyzeDiagnostic("I've finished a full hardware scan. Please identify the vehicle unit/model (VIN/ECU), decode any DTCs found, and give me a vehicle health summary based on these readings.");
+            await get().analyzeDiagnostic("I've finished a full hardware scan. Please identify the vehicle unit/model (VIN/ECU). NOTE: Vehicle might be a Nissan Navara; look for multi-frame CAN responses (49 02) split across lines (0:, 1:, 2:). Decode any DTCs found and give me a summary.");
 
             // 🔄 Resume polling after scan
             if (activeDevice) {
