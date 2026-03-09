@@ -119,28 +119,33 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             await new Promise(r => setTimeout(r, 500));
             await get().sendData(activeDevice.id, 'ATH1\r'); // Headers ON
             await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATAL\r'); // Allow Long messages (Crucial for VIN)
+            await get().sendData(activeDevice.id, 'ATAL\r'); // Allow Long messages
             await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATS1\r'); // Spaces ON
+            await get().sendData(activeDevice.id, 'ATCAF0\r'); // CAN Auto-Formatting OFF (reveals raw frames)
             await new Promise(r => setTimeout(r, 500));
             await get().sendData(activeDevice.id, 'ATAT1\r'); // Adaptive Timing
             await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATSP0\r'); // Automatic Protocol Search
+
+            // --- PROTOCOL DISCOVERY PHASE ---
+            log('Phase 1: Standard Auto-Detection...');
+            await get().sendData(activeDevice.id, 'ATSP0\r');
             await new Promise(r => setTimeout(r, 1200));
 
-            log('Waking up ECU Diagnostic Channels (Universal)...');
-            await get().sendData(activeDevice.id, '0100\r'); // Mode 1 Init
-            await new Promise(r => setTimeout(r, 600));
-            await get().sendData(activeDevice.id, '0900\r'); // Mode 9 Init
-            await new Promise(r => setTimeout(r, 600));
-
-            log('Recovering Vehicle Identity (Standard Mode 09)...');
+            log('Querying Vehicle Identity (Standard)...');
+            await get().sendData(activeDevice.id, '0100\r');
             await get().sendData(activeDevice.id, '0902\r');
             await new Promise(r => setTimeout(r, 3000));
 
-            log('Deep Scanning (Professional UDS Service 22)...');
+            // Secondary search if identity is still silent
+            log('Phase 2: Professional Identification Search...');
             await get().sendData(activeDevice.id, '22F190\r');
-            await new Promise(r => setTimeout(r, 3000));
+            await new Promise(r => setTimeout(r, 2500));
+
+            log('Phase 3: High-Speed Channel Lock...');
+            await get().sendData(activeDevice.id, 'ATSP6\r');
+            await new Promise(r => setTimeout(r, 1000));
+            await get().sendData(activeDevice.id, '0902\r');
+            await new Promise(r => setTimeout(r, 2000));
 
             log('Querying Vehicle Odometer (01A6)...');
             await get().sendData(activeDevice.id, '01A6\r');

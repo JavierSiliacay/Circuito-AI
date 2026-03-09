@@ -32,7 +32,9 @@ import {
     ArrowUpRight,
     Fuel,
     Droplets,
-    Wind
+    Wind,
+    Battery,
+    Navigation
 } from 'lucide-react';
 import { useSerialStore } from '@/store/serial-store';
 import { useIDEStore } from '@/store/ide-store';
@@ -413,6 +415,92 @@ export default function DiagnosticPage() {
                                                     const isVoltage = key === 'VOLTAGE';
                                                     const isSpeed = key === 'SPEED';
                                                     const isTemp = key === 'COOLANT_TEMP';
+                                                    const val = Number(data.value);
+
+                                                    if (isRPM) {
+                                                        const percentage = Math.min((val / 8000) * 100, 100);
+                                                        const rotation = (percentage * 2.4) - 120; // -120 to +120 degrees
+
+                                                        return (
+                                                            <motion.div
+                                                                key={key}
+                                                                layout
+                                                                className="relative col-span-2 row-span-2 overflow-hidden bg-[#0D121F] border border-cyan-primary/40 shadow-[0_0_40px_rgba(34,211,238,0.15)] rounded-[32px] p-6 flex flex-col items-center justify-center group"
+                                                            >
+                                                                {/* Circular Gauge Background */}
+                                                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.08)_0%,transparent_70%)]" />
+
+                                                                <div className="relative w-40 h-40 flex items-center justify-center">
+                                                                    {/* Gauge Outer Ring */}
+                                                                    <svg className="absolute inset-0 w-full h-full -rotate-[210deg]" viewBox="0 0 100 100">
+                                                                        <circle
+                                                                            cx="50" cy="50" r="45"
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            strokeWidth="2"
+                                                                            strokeDasharray="210 280"
+                                                                            className="text-white/5"
+                                                                        />
+                                                                        {/* Progress Arc */}
+                                                                        <motion.circle
+                                                                            cx="50" cy="50" r="45"
+                                                                            fill="none"
+                                                                            stroke="url(#gaugeGradient)"
+                                                                            strokeWidth="4"
+                                                                            strokeDasharray={`${(percentage / 100) * 210} 280`}
+                                                                            strokeLinecap="round"
+                                                                            initial={{ strokeDasharray: "0 280" }}
+                                                                            animate={{ strokeDasharray: `${(percentage / 100) * 210} 280` }}
+                                                                            transition={{ type: "spring", stiffness: 50, damping: 15 }}
+                                                                        />
+                                                                        <defs>
+                                                                            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                                                <stop offset="0%" stopColor="#22D3EE" />
+                                                                                <stop offset="70%" stopColor="#22D3EE" />
+                                                                                <stop offset="100%" stopColor="#EF4444" />
+                                                                            </linearGradient>
+                                                                        </defs>
+                                                                    </svg>
+
+                                                                    {/* Needle */}
+                                                                    <motion.div
+                                                                        className="absolute w-1 h-20 origin-bottom bg-gradient-to-t from-cyan-primary to-transparent rounded-full shadow-[0_0_10px_#22D3EE]"
+                                                                        style={{ bottom: '50%', left: 'calc(50% - 2px)' }}
+                                                                        animate={{ rotate: rotation }}
+                                                                        transition={{ type: "spring", stiffness: 60, damping: 12 }}
+                                                                    />
+
+                                                                    {/* Center Cap */}
+                                                                    <div className="absolute w-4 h-4 rounded-full bg-[#0D121F] border-2 border-cyan-primary z-20 shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
+
+                                                                    {/* Reading Text */}
+                                                                    <div className="absolute inset-0 flex flex-col items-center justify-center pt-8">
+                                                                        <span className="text-4xl font-black text-white tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                                                                            {data.value}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-black text-cyan-primary uppercase tracking-[0.2em] opacity-80">RPM</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="mt-4 flex flex-col items-center gap-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Gauge className="w-3 h-3 text-cyan-primary" />
+                                                                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">{data.label}</span>
+                                                                    </div>
+                                                                    {val > 6000 && (
+                                                                        <motion.span
+                                                                            initial={{ opacity: 0 }}
+                                                                            animate={{ opacity: [0, 1, 0] }}
+                                                                            transition={{ repeat: Infinity, duration: 0.5 }}
+                                                                            className="text-[9px] font-black text-red-500 uppercase"
+                                                                        >
+                                                                            Over-Rev Warning
+                                                                        </motion.span>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        );
+                                                    }
 
                                                     return (
                                                         <motion.div
@@ -429,13 +517,16 @@ export default function DiagnosticPage() {
                                                                 <div className="flex items-center gap-2">
                                                                     <div className={`p-1.5 rounded-lg ${isRPM ? 'bg-cyan-primary/10 text-cyan-primary' : 'bg-white/5 text-text-muted'} group-hover:scale-110 transition-transform`}>
                                                                         {isRPM ? <Gauge className="w-3.5 h-3.5" /> :
-                                                                            isTemp || key === 'ENGINE_OIL_TEMP' ? <Thermometer className="w-3.5 h-3.5" /> :
-                                                                                isVoltage ? <Zap className="w-3.5 h-3.5" /> :
-                                                                                    key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
-                                                                                        key === 'MAF' ? <Wind className="w-3.5 h-3.5" /> :
-                                                                                            key === 'A6' || key.includes('DISTANCE') ? <Clock className="w-3.5 h-3.5" /> :
-                                                                                                key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
-                                                                                                    <Activity className="w-3.5 h-3.5" />}
+                                                                            isTemp || key === '46' ? <Thermometer className="w-3.5 h-3.5" /> :
+                                                                                isVoltage ? <Battery className="w-3.5 h-3.5" /> :
+                                                                                    isSpeed ? <Navigation className="w-3.5 h-3.5" /> :
+                                                                                        key === '2F' || key === 'FUEL_LEVEL' ? <Fuel className="w-3.5 h-3.5" /> :
+                                                                                            key === '10' || key === '0F' || key === 'INTAKE_TEMP' ? <Wind className="w-3.5 h-3.5" /> :
+                                                                                                key === 'A6' || key === '1F' || key.includes('DISTANCE') ? <Clock className="w-3.5 h-3.5" /> :
+                                                                                                    key === '5C' || key.includes('OIL') ? <Droplets className="w-3.5 h-3.5" /> :
+                                                                                                        key === '04' || key === '43' ? <Cpu className="w-3.5 h-3.5" /> :
+                                                                                                            key === '0E' ? <Zap className="w-3.5 h-3.5" /> :
+                                                                                                                <Activity className="w-3.5 h-3.5" />}
                                                                     </div>
                                                                     <span className="text-[9px] font-black text-text-muted uppercase tracking-widest group-hover:text-white transition-colors">{data.label}</span>
                                                                 </div>
@@ -454,11 +545,11 @@ export default function DiagnosticPage() {
                                                                 <motion.div
                                                                     initial={{ width: 0 }}
                                                                     animate={{
-                                                                        width: isRPM ? `${Math.min((Number(data.value) / 7000) * 100, 100)}%` :
-                                                                            isSpeed ? `${Math.min((Number(data.value) / 220) * 100, 100)}%` :
-                                                                                isTemp ? `${Math.min((Number(data.value) / 120) * 100, 100)}%` : '40%'
+                                                                        width: isRPM ? `${Math.min((val / 7000) * 100, 100)}%` :
+                                                                            isSpeed ? `${Math.min((val / 220) * 100, 100)}%` :
+                                                                                isTemp ? `${Math.min((val / 120) * 100, 100)}%` : '40%'
                                                                     }}
-                                                                    className={`h-full shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all ${isTemp && Number(data.value) > 100 ? 'bg-red-500' : 'bg-cyan-primary'
+                                                                    className={`h-full shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all ${isTemp && val > 100 ? 'bg-red-500' : 'bg-cyan-primary'
                                                                         }`}
                                                                 />
                                                             </div>
