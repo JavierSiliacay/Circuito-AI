@@ -104,13 +104,18 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
     // Strip ISO 15765-4 PCI (Protocol Control Information) 
     // e.g. "10 14 49 02..." -> some adapters might keep these
     if (cleanLine.length > 2 && /^[0-9A-F]{2}/.test(cleanLine)) {
-        // If it looks like a long hex string, we try to find 41 or 49 inside
+        // If it looks like a long hex string, we try to find 41, 49, or 62 inside
         const start41 = cleanLine.indexOf('41');
         const start49 = cleanLine.indexOf('49');
-        if (start41 !== -1 && (start49 === -1 || start41 < start49)) {
-            cleanLine = cleanLine.substring(start41);
-        } else if (start49 !== -1) {
-            cleanLine = cleanLine.substring(start49);
+        const start62 = cleanLine.indexOf('62'); // UDS Response
+
+        let targetStart = -1;
+        if (start41 !== -1) targetStart = start41;
+        if (start49 !== -1 && (targetStart === -1 || start49 < targetStart)) targetStart = start49;
+        if (start62 !== -1 && (targetStart === -1 || start62 < targetStart)) targetStart = start62;
+
+        if (targetStart !== -1) {
+            cleanLine = cleanLine.substring(targetStart);
         }
     }
 
@@ -152,6 +157,26 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
         const decoded = decodeOBDResponse(pid, bytes, '09');
         if (decoded) {
             return { key: 'VEHICLE_INFO_' + pid, data: decoded };
+        }
+    }
+
+    // 4. Handle UDS Service 22 Responses (62 F1 90 ...) - Modern VIN
+    if (cleanLine.startsWith('62F190')) {
+        const bytes = [];
+        for (let i = 6; i < cleanLine.length; i += 2) {
+            bytes.push(cleanLine.substring(i, i + 2));
+        }
+
+        const formula = OBD_FORMULAS['VIN'];
+        if (formula) {
+            return {
+                key: 'VEHICLE_INFO_02',
+                data: {
+                    value: formula(bytes.map(b => parseInt(b, 16))),
+                    unit: '',
+                    label: 'Vehicle Identification Number (UDS)'
+                }
+            };
         }
     }
 

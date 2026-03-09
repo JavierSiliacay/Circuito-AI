@@ -118,10 +118,14 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             await get().sendData(activeDevice.id, 'ATSP0\r');
             await new Promise(r => setTimeout(r, 1000));
 
-            log('Inquiring Vehicle Identity (Service 0902)...');
+            log('Enquiring Vehicle Identity (Service 0902)...');
             await get().sendData(activeDevice.id, '0902\r');
             // ⏳ Increasing wait time for Nissan multi-frame VIN
             await new Promise(r => setTimeout(r, 2500));
+
+            log('Scanning via UDS (Service 22F190)...');
+            await get().sendData(activeDevice.id, '22F190\r');
+            await new Promise(r => setTimeout(r, 2000));
 
             log('Querying Vehicle Odometer (01A6)...');
             await get().sendData(activeDevice.id, '01A6\r');
