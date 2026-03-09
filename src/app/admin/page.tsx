@@ -65,7 +65,10 @@ export default function AdminPage() {
             .update(updates)
             .eq('id', profileId);
 
-        if (!error) {
+        if (error) {
+            console.error('Update failed:', error);
+            alert(`Error: ${error.message}`);
+        } else {
             setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, ...updates } : p));
         }
         setUpdating(null);

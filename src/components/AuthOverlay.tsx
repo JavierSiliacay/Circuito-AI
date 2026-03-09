@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ShieldCheck, Mail, Ban, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, ShieldCheck, Mail, Ban, AlertTriangle, CheckCircle2, ShieldAlert, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -16,8 +16,10 @@ export default function AuthOverlay() {
         const { verification_status, warning_message } = profile;
 
         // BANNED or DELETED (Hard Lock)
-        if (verification_status === 'banned' || verification_status === 'deleted') {
+        if (verification_status === 'banned' || verification_status === 'deleted' || verification_status === 'rejected') {
             const isBan = verification_status === 'banned';
+            const isDelete = verification_status === 'deleted';
+            const isReject = verification_status === 'rejected';
             return (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A0F1C] p-4">
                     <div className={`absolute inset-0 ${isBan ? 'bg-red-500/5' : 'bg-white/5'} blur-[120px]`} />
@@ -26,18 +28,20 @@ export default function AuthOverlay() {
                         animate={{ scale: 1, opacity: 1 }}
                         className={`w-full max-w-md bg-[#0D121F] border ${isBan ? 'border-red-500/20' : 'border-white/10'} rounded-[40px] p-10 text-center space-y-8 shadow-2xl`}
                     >
-                        <div className={`w-20 h-20 rounded-full ${isBan ? 'bg-red-500/10 border-red-500/20' : 'bg-white/5 border-white/10'} flex items-center justify-center border mx-auto`}>
-                            {isBan ? <Ban className="w-10 h-10 text-red-500" /> : <Trash2 className="w-10 h-10 text-text-muted" />}
+                        <div className={`w-20 h-20 rounded-full ${isBan ? 'bg-red-500/10 border-red-500/20' : isReject ? 'bg-red-400/10 border-red-400/20' : 'bg-white/5 border-white/10'} flex items-center justify-center border mx-auto`}>
+                            {isBan ? <Ban className="w-10 h-10 text-red-500" /> : isReject ? <AlertTriangle className="w-10 h-10 text-red-400" /> : <Trash2 className="w-10 h-10 text-text-muted" />}
                         </div>
                         <div className="space-y-4">
                             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
-                                {isBan ? 'Account Banned' : 'Account Deactivated'}
+                                {isBan ? 'Account Banned' : isReject ? 'Request Rejected' : 'Account Deactivated'}
                             </h2>
                             <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                                 <p className="text-sm text-text-muted leading-relaxed">
                                     {warning_message || (isBan
                                         ? "Your access has been permanently revoked due to a violation of our safety protocols."
-                                        : "This account has been terminated and deactivated.")}
+                                        : isReject
+                                            ? "Your request has been rejected because you did not comply with the specific requirements or you are not qualified."
+                                            : "This account has been terminated and deactivated.")}
                                 </p>
                             </div>
                         </div>
@@ -52,25 +56,24 @@ export default function AuthOverlay() {
             );
         }
 
-        // REJECTED or WARNING (Soft Notification)
-        if (verification_status === 'rejected' || warning_message) {
-            const isReject = verification_status === 'rejected';
+        // WARNING (Soft Notification)
+        if (warning_message) {
             return (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
                     <motion.div
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        className={`w-full max-w-md bg-[#0D121F] border ${isReject ? 'border-red-400/30' : 'border-yellow-500/30'} rounded-[32px] p-8 space-y-6 shadow-2xl relative overflow-hidden`}
+                        className="w-full max-w-md bg-[#0D121F] border border-yellow-500/30 rounded-[32px] p-8 space-y-6 shadow-2xl relative overflow-hidden"
                     >
                         <div className="flex items-center gap-4 relative z-10">
-                            <div className={`w-12 h-12 rounded-2xl ${isReject ? 'bg-red-400/10 border-red-400/20' : 'bg-yellow-500/10 border-yellow-500/20'} flex items-center justify-center border`}>
-                                {isReject ? <AlertTriangle className="w-6 h-6 text-red-400" /> : <ShieldAlert className="w-6 h-6 text-yellow-500" />}
+                            <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center border">
+                                <ShieldAlert className="w-6 h-6 text-yellow-500" />
                             </div>
                             <div>
                                 <h3 className="text-lg font-black text-white uppercase tracking-tight">
-                                    {isReject ? 'Request Rejected' : 'System Notice'}
+                                    System Notice
                                 </h3>
-                                <p className={`text-[10px] ${isReject ? 'text-red-400' : 'text-yellow-500'} font-bold uppercase tracking-widest`}>
+                                <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">
                                     Administrative Feedback
                                 </p>
                             </div>
@@ -78,24 +81,20 @@ export default function AuthOverlay() {
 
                         <div className="p-5 rounded-2xl bg-white/5 border border-white/5 relative z-10">
                             <p className="text-sm text-text-muted leading-relaxed italic">
-                                {warning_message || (isReject
-                                    ? "Your request has been rejected because you did not comply with the specific requirements or you are not qualified."
-                                    : "Please review your recent activity.")}
+                                {warning_message}
                             </p>
                         </div>
 
                         <p className="text-[11px] text-text-muted/60 text-center px-4 relative z-10">
-                            {isReject
-                                ? "You may re-submit your verification documents if you believe this was an error."
-                                : "Please acknowledge this notice to continue using the platform."}
+                            Please acknowledge this notice to continue using the platform.
                         </p>
 
                         <button
                             onClick={() => clearWarning()}
-                            className={`w-full py-4 rounded-full ${isReject ? 'bg-red-400 text-white' : 'bg-yellow-500 text-black'} font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 relative z-10`}
+                            className="w-full py-4 rounded-full bg-yellow-500 text-black font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 relative z-10"
                         >
                             <CheckCircle2 className="w-4 h-4" />
-                            {isReject ? 'Acknowledge Rejection' : 'Acknowledge Notice'}
+                            Acknowledge Notice
                         </button>
                     </motion.div>
                 </div>

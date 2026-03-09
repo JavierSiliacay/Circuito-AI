@@ -8,7 +8,7 @@ interface Profile {
     full_name: string;
     avatar_url: string;
     category: 'student' | 'enthusiast' | 'mechanic' | null;
-    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | null;
+    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | null;
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
@@ -60,17 +60,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     clearWarning: async () => {
-        const { user } = get();
-        if (!user) return;
+        const { user, profile } = get();
+        if (!user || !profile) return;
+
+        // If user was rejected, clear that status too to let them re-verify
+        const updates: any = { warning_message: null };
+        if (profile.verification_status === 'rejected') {
+            updates.verification_status = null;
+        }
 
         const { error } = await supabase
             .from('profiles')
-            .update({ warning_message: null })
+            .update(updates)
             .eq('id', user.id);
 
         if (!error) {
             set(state => ({
-                profile: state.profile ? { ...state.profile, warning_message: null } : null
+                profile: state.profile ? {
+                    ...state.profile,
+                    warning_message: null,
+                    verification_status: state.profile.verification_status === 'rejected' ? null : state.profile.verification_status
+                } : null
             }));
         }
     }
