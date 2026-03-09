@@ -112,20 +112,35 @@ export const useSerialStore = create<SerialState>((set, get) => ({
         };
 
         try {
-            log('Resetting ELM327 & Detecting Protocol (AT SP 0)...');
-            await get().sendData(activeDevice.id, 'ATZ\r');
+            log('Universal Hardware Handshake (Deep Pro Mode)...');
+            await get().sendData(activeDevice.id, 'ATZ\r'); // Full Reset
             await new Promise(r => setTimeout(r, 1000));
-            await get().sendData(activeDevice.id, 'ATSP0\r');
-            await new Promise(r => setTimeout(r, 1000));
+            await get().sendData(activeDevice.id, 'ATE0\r'); // Echo Off
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATH1\r'); // Headers ON
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATAL\r'); // Allow Long messages (Crucial for VIN)
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATS1\r'); // Spaces ON
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATAT1\r'); // Adaptive Timing
+            await new Promise(r => setTimeout(r, 500));
+            await get().sendData(activeDevice.id, 'ATSP0\r'); // Automatic Protocol Search
+            await new Promise(r => setTimeout(r, 1200));
 
-            log('Enquiring Vehicle Identity (Service 0902)...');
+            log('Waking up ECU Diagnostic Channels (Universal)...');
+            await get().sendData(activeDevice.id, '0100\r'); // Mode 1 Init
+            await new Promise(r => setTimeout(r, 600));
+            await get().sendData(activeDevice.id, '0900\r'); // Mode 9 Init
+            await new Promise(r => setTimeout(r, 600));
+
+            log('Recovering Vehicle Identity (Standard Mode 09)...');
             await get().sendData(activeDevice.id, '0902\r');
-            // ⏳ Increasing wait time for Nissan multi-frame VIN
-            await new Promise(r => setTimeout(r, 2500));
+            await new Promise(r => setTimeout(r, 3000));
 
-            log('Scanning via UDS (Service 22F190)...');
+            log('Deep Scanning (Professional UDS Service 22)...');
             await get().sendData(activeDevice.id, '22F190\r');
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 3000));
 
             log('Querying Vehicle Odometer (01A6)...');
             await get().sendData(activeDevice.id, '01A6\r');
@@ -153,7 +168,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
             // Trigger AI analysis with a specific prompt
-            await get().analyzeDiagnostic("I've finished a full hardware scan. Please identify the vehicle unit/model (VIN/ECU). NOTE: Vehicle might be a Nissan Navara; look for multi-frame CAN responses (49 02) split across lines (0:, 1:, 2:). Decode any DTCs found and give me a summary.");
+            await get().analyzeDiagnostic("I've finished a deep hardware scan across multiple diagnostic services (Mode 09 and UDS 22). Please identify the vehicle unit/model (VIN/ECU). Look for multi-frame CAN responses split across lines (0:, 1:, 2: or headers like 7E8). Decode any DTCs and give a full health report.");
 
             // 🔄 Resume polling after scan
             if (activeDevice) {
