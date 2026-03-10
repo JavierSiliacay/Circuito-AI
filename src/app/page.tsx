@@ -26,6 +26,9 @@ import {
   FolderOpen,
   Activity,
   ShieldCheck,
+  Bell,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { CircuitoLogo } from '@/components/ui/logo';
@@ -233,6 +236,9 @@ export default function Home() {
 
   // Bridge state from global store
   const { isBridgeConnected, localProjectPath, checkBridgeConnection, setLocalProjectPath, syncToLocalFile, agentTaskStatus, setAgentTaskStatus } = useIDEStore();
+
+  const { clearWarning } = useAuthStore();
+  const [isInboxOpen, setIsInboxOpen] = useState(false);
 
   const [isBridgeModalOpen, setIsBridgeModalOpen] = useState(false);
   const [localPathInput, setLocalPathInput] = useState(localProjectPath);
@@ -1083,6 +1089,59 @@ export default function Home() {
               <span className="max-w-[80px] sm:max-w-none truncate">{selectedBoard?.name || 'ESP32 Mode'}</span>
               <ChevronDown className="w-3 h-3 opacity-30" />
             </button>
+
+            {profile?.warning_message && (
+              <div className="relative">
+                <button
+                  onClick={() => setIsInboxOpen(!isInboxOpen)}
+                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${isInboxOpen ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-500' : 'bg-white/5 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/10'}`}
+                >
+                  <Bell className="w-4.5 h-4.5 animate-bounce" />
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0A0F1C]" />
+                </button>
+
+                <AnimatePresence>
+                  {isInboxOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-80 bg-[#0D121F] border border-yellow-500/30 rounded-[24px] p-6 shadow-2xl z-50 overflow-hidden"
+                    >
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                            <AlertCircle className="w-3 h-3 text-yellow-500" />
+                            System Notice
+                          </h3>
+                          <button onClick={() => setIsInboxOpen(false)}>
+                            <X className="w-4 h-4 text-text-muted hover:text-white" />
+                          </button>
+                        </div>
+                        <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                          <p className="text-[13px] text-text-secondary leading-relaxed italic">
+                            "{profile.warning_message}"
+                          </p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            await clearWarning();
+                            setIsInboxOpen(false);
+                          }}
+                          className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-yellow-500 text-black font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Acknowledge Message
+                        </button>
+                        <p className="text-[9px] text-center text-text-muted uppercase tracking-tighter opacity-50">
+                          Acknowledging will clear this from your inbox
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </header>
 

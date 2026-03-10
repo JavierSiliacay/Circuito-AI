@@ -69,50 +69,6 @@ export default function AuthOverlay() {
             );
         }
 
-        // WARNING (Soft Notification)
-        if (warning_message) {
-            return (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-                    <motion.div
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        className="w-full max-w-md bg-[#0D121F] border border-yellow-500/30 rounded-[32px] p-8 space-y-6 shadow-2xl relative overflow-hidden"
-                    >
-                        <div className="flex items-center gap-4 relative z-10">
-                            <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center border">
-                                <ShieldAlert className="w-6 h-6 text-yellow-500" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black text-white uppercase tracking-tight">
-                                    System Notice
-                                </h3>
-                                <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">
-                                    Administrative Feedback
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="p-5 rounded-2xl bg-white/5 border border-white/5 relative z-10">
-                            <p className="text-sm text-text-muted leading-relaxed italic">
-                                {warning_message}
-                            </p>
-                        </div>
-
-                        <p className="text-[11px] text-text-muted/60 text-center px-4 relative z-10">
-                            Please acknowledge this notice to continue using the platform.
-                        </p>
-
-                        <button
-                            onClick={() => clearWarning()}
-                            className="w-full py-4 rounded-full bg-yellow-500 text-black font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 relative z-10"
-                        >
-                            <CheckCircle2 className="w-4 h-4" />
-                            Acknowledge Notice
-                        </button>
-                    </motion.div>
-                </div>
-            );
-        }
     }
 
     // 3. Handle Not Logged In
