@@ -12,18 +12,21 @@ import { useAuthStore } from '@/store/auth-store';
 import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
 export default function OnboardingModal() {
-    const { user, profile, checkAuth, isAdmin } = useAuthStore();
+    const { user, profile, checkAuth, isAdmin, isLoading } = useAuthStore();
     const [category, setCategory] = useState<'student' | 'enthusiast' | 'mechanic' | null>(null);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    // Only show if user is logged in, NOT an admin, and profile hasn't been completed
-    const needsOnboarding = user && !isAdmin && (!profile?.category || profile?.verification_status === null);
-
     // 0. TEMPORARY BYPASS (Vercel/Auth Outage)
     if (MAINTENANCE_CONFIG.isAuthBypassEnabled) return null;
+
+    // 1. Loading state - Don't show while fetching profile
+    if (isLoading) return null;
+
+    // 2. Only show if user is logged in, NOT an admin, and profile hasn't been completed
+    const needsOnboarding = user && !isAdmin && (!profile?.category || profile?.verification_status === null);
 
     if (!needsOnboarding) return null;
 
