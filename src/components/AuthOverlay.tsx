@@ -15,7 +15,7 @@ export default function AuthOverlay() {
     if (MAINTENANCE_CONFIG.isAuthBypassEnabled) return null;
 
     // 0. Disable overlay on specific public/auth pages
-    if (pathname === '/auth/auth-code-error') return null;
+    if (pathname === '/auth/auth-code-error' || pathname?.startsWith('/admin')) return null;
 
     // 1. Loading state
     if (isLoading) return null;

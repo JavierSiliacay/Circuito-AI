@@ -28,7 +28,23 @@ export async function middleware(request: NextRequest) {
     )
 
     // Do not delete this line: it is used to refresh the session if it is expired
-    await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // 2. Admin Route Protection
+    if (request.nextUrl.pathname.startsWith('/admin')) {
+        const adminEmails = [
+            'siliacay.javier@gmail.com',
+            'javiersiliacaysiliacay1234@gmail.com',
+            'javiersiliacay12@gmail.com'
+        ].map(e => e.toLowerCase());
+
+        const userEmail = user?.email?.toLowerCase();
+
+        if (!user || !userEmail || !adminEmails.includes(userEmail)) {
+            // Redirect to home if not an admin
+            return NextResponse.redirect(new URL('/', request.url))
+        }
+    }
 
     return supabaseResponse
 }
