@@ -26,7 +26,19 @@ export default function OnboardingModal() {
     if (isLoading) return null;
 
     // 2. Only show if user is logged in, NOT an admin, and profile hasn't been completed
-    const needsOnboarding = user && !isAdmin && (!profile?.category || profile?.verification_status === null);
+    // profile.category === null means they haven't picked a role yet
+    // profile.verification_status === null means they haven't submitted documents yet
+    const needsOnboarding = user && !isAdmin && (profile?.category === null || profile?.category === undefined);
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log('[Onboarding] State:', {
+            hasUser: !!user,
+            isAdmin,
+            category: profile?.category,
+            status: profile?.verification_status,
+            needsOnboarding
+        });
+    }
 
     if (!needsOnboarding) return null;
 

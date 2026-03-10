@@ -214,7 +214,7 @@ import { useAuthStore } from '@/store/auth-store';
 import AuthOverlay from '@/components/AuthOverlay';
 
 export default function Home() {
-  const { user, profile, isLoading } = useAuthStore();
+  const { user, profile, isLoading, isAdmin } = useAuthStore();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -889,7 +889,10 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <div className={`w-1 h-1 rounded-full ${promptCount < 20 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
                       <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">
-                        Guest Mode ({Math.max(0, 20 - promptCount)} prompts left)
+                        {user
+                          ? (isAdmin ? 'Admin Console' : `${profile?.category || 'Authorized'} Mode`)
+                          : `Guest Mode (${Math.max(0, 20 - promptCount)} prompts left)`
+                        }
                       </span>
                     </div>
                   </div>
@@ -1101,7 +1104,7 @@ export default function Home() {
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 custom-scrollbar">
-          {(!MAINTENANCE_CONFIG.isAuthBypassEnabled && !isLoading && user && !profile?.has_ai_access) ? (
+          {(!MAINTENANCE_CONFIG.isAuthBypassEnabled && !isLoading && user && !isAdmin && !profile?.has_ai_access) ? (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center gap-8">
               <div className="w-20 h-20 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shadow-[0_0_40px_rgba(249,115,22,0.1)]">
                 <ShieldCheck className="w-8 h-8 text-orange-500" />

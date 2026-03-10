@@ -32,8 +32,7 @@ export async function middleware(request: NextRequest) {
 
     // 2. Admin Route Protection
     if (request.nextUrl.pathname.startsWith('/admin')) {
-        const adminEmails = [
-            'siliacay.javier@gmail.com',
+        const adminEmails = [            
             'javiersiliacaysiliacay1234@gmail.com',
             'javiersiliacay12@gmail.com'
         ].map(e => e.toLowerCase());
