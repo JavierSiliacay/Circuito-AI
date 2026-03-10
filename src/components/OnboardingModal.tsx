@@ -9,10 +9,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
+import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
 export default function OnboardingModal() {
     const { user, profile, checkAuth, isAdmin } = useAuthStore();
-    const [isOpen, setIsOpen] = useState(false);
     const [category, setCategory] = useState<'student' | 'enthusiast' | 'mechanic' | null>(null);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -21,6 +21,9 @@ export default function OnboardingModal() {
 
     // Only show if user is logged in, NOT an admin, and profile hasn't been completed
     const needsOnboarding = user && !isAdmin && (!profile?.category || profile?.verification_status === null);
+
+    // 0. TEMPORARY BYPASS (Vercel/Auth Outage)
+    if (MAINTENANCE_CONFIG.isAuthBypassEnabled) return null;
 
     if (!needsOnboarding) return null;
 

@@ -49,6 +49,7 @@ import {
 } from '@/components/ui/select';
 import Link from 'next/link';
 import { CircuitoLogo } from '@/components/ui/logo';
+import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
 const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600];
 
@@ -146,13 +147,15 @@ export default function DiagnosticPage() {
 
     const handleSerialConnect = async () => {
         setIsConnectModalOpen(false);
+        setConnectionError(null);
         try {
             const id = await connectDevice();
             if (id) {
                 await openSerial(id, baudRate);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Diagnostic connection failed:', err);
+            setConnectionError(err.message || 'Serial connection failed. Check if port is in use.');
         }
     };
 
@@ -223,7 +226,8 @@ export default function DiagnosticPage() {
         };
     }, []);
 
-    if (!isLoading && (!user || !profile?.has_diag_access)) {
+    // 0. TEMPORARY BYPASS (Vercel/Auth Outage)
+    if (!MAINTENANCE_CONFIG.isAuthBypassEnabled && !isLoading && (!user || !profile?.has_diag_access)) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-[#0D121F] p-8 text-center gap-8">
                 <div className="w-24 h-24 rounded-full bg-red-400/10 flex items-center justify-center border border-red-400/20 shadow-[0_0_40px_rgba(239,68,68,0.1)]">
@@ -638,11 +642,11 @@ export default function DiagnosticPage() {
                                         </div>
                                         <div className="space-y-2">
                                             <p className="text-xl font-black text-white uppercase tracking-tighter">Hardware Sync Required</p>
-                                            <p className="text-sm text-text-muted max-w-md mx-auto">Establish a serial connection to start streaming vehicle telemetry and activate the AI Diagnostic Specialist.</p>
+                                            <p className="text-sm text-text-muted max-w-md mx-auto">Establish a serial connection to start streaming vehicle telemetry or activate your custom Arduino Ghost Sniffer.</p>
                                         </div>
                                         <button
-                                            onClick={handleConnect}
-                                            className="px-8 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl shadow-white/5 transform hover:scale-105"
+                                            onClick={handleSerialConnect} // 👈 Direct connect
+                                            className="px-8 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-widest hover:bg-cyan-primary transition-all shadow-xl shadow-white/5 transform hover:scale-105 active:scale-95"
                                         >
                                             Connect Hardware Now
                                         </button>
@@ -887,7 +891,7 @@ export default function DiagnosticPage() {
 
                                 <div className="space-y-4">
                                     <button
-                                        onClick={connectDevice}
+                                        onClick={handleSerialConnect}
                                         className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-cyan-primary/50 hover:bg-cyan-primary/5 transition-all text-left flex items-center gap-6"
                                     >
                                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/20 transition-colors">
@@ -900,7 +904,7 @@ export default function DiagnosticPage() {
                                     </button>
 
                                     <button
-                                        onClick={connectBluetooth}
+                                        onClick={handleBluetoothConnect}
                                         className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-purple-ai/50 hover:bg-purple-ai/5 transition-all text-left flex items-center gap-6"
                                     >
                                         <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-purple-ai/20 transition-colors">

@@ -72,11 +72,14 @@ export default function ReportPage() {
             <style jsx global>{`
                 @media print {
                     @page { 
-                        size: auto; 
-                        margin: 15mm; 
+                        size: A4; 
+                        margin: 10mm; 
                     }
-                    body { 
+                    html, body { 
+                        height: 100%;
                         background: white !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     .no-print {
                         display: none !important;
@@ -86,49 +89,52 @@ export default function ReportPage() {
                         page-break-inside: avoid; 
                     }
                     .page-break {
-                        break-before: always;
+                        display: block;
+                        break-before: page;
                         page-break-before: always;
                     }
-                    * {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
+                    /* Scale down the entire content to fit tight gaps */
+                    .max-w-4xl {
+                        max-width: 100% !important;
+                        width: 100% !important;
+                        transform: scale(0.92);
+                        transform-origin: top center;
                     }
                 }
                 
-                /* Custom prose-like styles for the findings */
+                /* Consolidated UI spacing */
                 .findings-content p {
-                    font-size: 14.5px;
-                    line-height: 1.6;
-                    margin-bottom: 1rem;
+                    font-size: 13px;
+                    line-height: 1.4;
+                    margin-bottom: 0.5rem;
                     color: #334155;
                     font-weight: 600;
-                    letter-spacing: -0.01em;
                 }
                 .findings-content h4 {
-                    font-size: 12px;
+                    font-size: 11px;
                     font-weight: 900;
                     text-transform: uppercase;
-                    letter-spacing: 0.1em;
+                    letter-spacing: 0.05em;
                     color: #0f172a;
-                    margin: 2rem 0 1rem 0;
-                    background: #f8fafc;
-                    padding: 0.5rem 1rem;
-                    border-radius: 0.5rem;
-                    border-left: 4px solid #0f172a;
+                    margin: 1rem 0 0.5rem 0;
+                    background: #f1f5f9;
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 0.25rem;
+                    border-left: 3px solid #0f172a;
                 }
                 .finding-item {
-                    margin-left: 1rem;
-                    margin-bottom: 1rem;
-                    padding: 1.25rem;
+                    margin-left: 0.5rem;
+                    margin-bottom: 0.5rem;
+                    padding: 0.75rem;
                     background: #f8fafc;
-                    border: 2px solid #f1f5f9;
-                    border-left: 4px solid #0891b280;
-                    border-radius: 1.5rem;
-                    font-size: 14px;
+                    border: 1px solid #e2e8f0;
+                    border-left: 3px solid #0891b280;
+                    border-radius: 1rem;
+                    font-size: 12.5px;
                     color: #334155;
-                    font-weight: 700;
+                    font-weight: 600;
                     display: flex;
-                    gap: 1rem;
+                    gap: 0.75rem;
                 }
             `}</style>
 
@@ -152,7 +158,7 @@ export default function ReportPage() {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto p-12 print:p-0">
+            <div className="max-w-4xl mx-auto p-8 print:p-0">
                 <div className="space-y-12">
                     {/* Brand Header */}
                     <div className="flex justify-between items-start border-b-4 border-slate-900 pb-10">
@@ -239,23 +245,31 @@ export default function ReportPage() {
                             Raw Data Trace (Service 01/03/07)
                         </h3>
                         <div className="bg-slate-900 border border-slate-800 p-8 rounded-[40px] font-mono text-[9px] leading-relaxed shadow-2xl relative">
-                            <div className="absolute top-4 right-8 text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Hex Stream Log</div>
+                            <div className="absolute top-4 right-8 text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Hex Stream Log (Page 1)</div>
                             <div className="space-y-1.5 opacity-90">
-                                {data.serialOutput.map((line, i) => (
+                                {data.serialOutput.slice(-15).map((line, i) => (
                                     <div key={i} className="flex gap-4 border-b border-white/5 pb-1 last:border-0">
                                         <span className="text-cyan-400 font-bold tracking-tight text-left">{line}</span>
                                     </div>
                                 ))}
                                 {data.serialOutput.length === 0 && <div className="text-slate-500 italic">No telemetry data recorded in hardware buffer.</div>}
+                                {data.serialOutput.length > 15 && (
+                                    <div className="text-[7px] text-slate-600 uppercase font-black tracking-widest pt-2">
+                                        [Truncated for Page 1 Report Optimization]
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
+
+                    {/* Page Break for Findings */}
+                    <div className="page-break" />
 
                     {/* Findings */}
                     <div className="space-y-10 pt-6">
                         <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-4 text-slate-950 leading-none">
                             <Sparkles className="w-8 h-8 text-cyan-600" />
-                            Intelligent Findings
+                            Intelligent Findings (Page 2)
                         </h3>
                         <div className="space-y-16">
                             {data.diagnosticHistory
@@ -274,6 +288,7 @@ export default function ReportPage() {
                                     }
                                     return true;
                                 })
+                                .slice(-3) // 👈 Limit to last 3 key findings to stay on Page 2
                                 .map((m, mIdx) => {
                                     const isAssistant = m.role === 'assistant';
                                     return (
@@ -320,8 +335,8 @@ export default function ReportPage() {
                     </div>
 
                     {/* Auth Section */}
-                    <div className="avoid-break pt-16 border-t-2 border-slate-100">
-                        <div className="flex justify-between items-end mb-8">
+                    <div className="avoid-break pt-6 border-t border-slate-100">
+                        <div className="flex justify-between items-end mb-4">
                             <div>
                                 <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-[0.3em] mb-2">Technician Final Authorization</h4>
                                 <p className="text-xs text-slate-400 font-bold italic">Verification of automated diagnostic findings and physical inspection results.</p>
@@ -332,13 +347,12 @@ export default function ReportPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-8">
-                            <div className="h-40 border-2 border-dashed border-slate-200 rounded-[32px] p-8 flex flex-col justify-between bg-slate-50/30 text-left">
+                        <div className="space-y-4">
+                            <div className="h-24 border-2 border-dashed border-slate-200 rounded-[24px] p-6 flex flex-col justify-between bg-slate-50/30 text-left">
                                 <span className="text-[10px] text-slate-300 font-black uppercase tracking-[0.4em]">Additional Shop Notes</span>
                                 <div className="flex gap-4">
-                                    <div className="w-16 h-[2px] bg-slate-100" />
-                                    <div className="w-16 h-[2px] bg-slate-100" />
-                                    <div className="w-16 h-[2px] bg-slate-100" />
+                                    <div className="w-12 h-[1px] bg-slate-100" />
+                                    <div className="w-12 h-[1px] bg-slate-100" />
                                 </div>
                             </div>
 
@@ -360,19 +374,19 @@ export default function ReportPage() {
                     </div>
 
                     {/* Footer */}
-                    <div className="mt-16 pt-10 border-t border-slate-100 flex flex-col items-center gap-6 text-center">
-                        <div className="flex gap-16 items-center">
+                    <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center gap-4 text-center">
+                        <div className="flex gap-12 items-center">
                             <div className="flex flex-col gap-1">
                                 <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Neural Analysis</span>
                                 <span className="text-[10px] font-black text-slate-950">99.8% Reliability</span>
                             </div>
-                            <CircuitoLogo className="w-8 h-8 opacity-20" glow={false} />
+                            <CircuitoLogo className="w-6 h-6 opacity-20" glow={false} />
                             <div className="flex flex-col gap-1">
                                 <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Station State</span>
                                 <span className="text-[10px] font-black text-slate-950 uppercase tracking-tighter">CERTIFIED 2026</span>
                             </div>
                         </div>
-                        <p className="text-[9px] text-slate-400 font-bold italic max-w-md leading-relaxed">
+                        <p className="text-[8px] text-slate-400 font-bold italic max-w-md leading-relaxed">
                             This document represents a digital snapshot of internal vehicle computations. Findings derived from real-time CAN/OBDII telemetry processed via Circuito AI.
                         </p>
                     </div>

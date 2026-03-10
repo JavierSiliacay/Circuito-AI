@@ -231,8 +231,10 @@ export async function POST(request: NextRequest) {
                 contextPayload += `\n\n📡 LIVE VEHICLE TELEMETRY:\n${(context as any).telemetry}`;
                 contextPayload += `\n\n⚠️ DIAGNOSTIC_DIRECTIVE: 
                 Analyze the telemetry above. Look for OBD2 Service 03/07 responses (43/47), 
-                ELM327 status codes, and Service 01/09 PID data. If you see VIN or DTC hex patterns, 
-                decode them for the user.`;
+                ELM327 status codes, and Service 01/09 PID data.
+                DTC PRIORITY RULE: If a Diagnostic Trouble Code (DTC) is detected, you MUST 
+                print the DTC code itself (e.g. "P0302") in a bold header or large text at the 
+                VERY START of your response before any binary decoding or explanation.`;
             }
 
             systemPrompt += contextPayload;

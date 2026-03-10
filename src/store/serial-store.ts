@@ -34,6 +34,7 @@ export interface ConnectedDevice {
     status: 'connected' | 'disconnected' | 'reading';
     vendorId?: number;
     productId?: number;
+    mode?: 'obd' | 'sniffer'; // 👈 NEW: Track connection capability
 }
 
 interface SerialState {
@@ -181,7 +182,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
             // Trigger AI analysis with a specific prompt
-            await get().analyzeDiagnostic("I've finished a deep hardware scan across multiple diagnostic services (Mode 09 and UDS 22). Please identify the vehicle unit/model (VIN/ECU). Look for multi-frame CAN responses split across lines (0:, 1:, 2: or headers like 7E8). Decode any DTCs and give a full health report.");
+            await get().analyzeDiagnostic("I've finished a deep hardware scan across multiple diagnostic services (Mode 09 and UDS 22). Please identify the vehicle unit/model (VIN/ECU). Look for multi-frame CAN responses. IMPORTANT: If you detect any Diagnostic Trouble Codes (DTCs), you MUST display the code (e.g., P0302) at the very top of your response before any other text.");
 
             // 🔄 Resume polling after scan
             if (activeDevice) {
@@ -211,8 +212,17 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                 return;
             }
 
+            // 🛡️ Skip polling commands if we are in PASSIVE/SNIFFER mode
+            if (device.mode === 'sniffer') {
+                console.log('[SerialStore] Passive Mode: Skipping active PID polling.');
+                return;
+            }
+
             try {
                 // Background poll core PIDs with high frequency
+                await current.sendData(deviceId, '0101\r'); // MIL Status & DTC Count
+                await new Promise(r => setTimeout(r, 150));
+
                 await current.sendData(deviceId, '010C\r'); // RPM
                 await new Promise(r => setTimeout(r, 150));
 
@@ -222,11 +232,11 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                 await current.sendData(deviceId, '0105\r'); // Coolant
                 await new Promise(r => setTimeout(r, 150));
 
-                await current.sendData(deviceId, 'ATRV\r'); // Voltage
+                await current.sendData(deviceId, '0103\r'); // Fuel System Status
                 await new Promise(r => setTimeout(r, 150));
 
-                // Optional: Secondary PIDs (Intake Temp)
-                await current.sendData(deviceId, '010F\r');
+                await current.sendData(deviceId, 'ATRV\r'); // Voltage
+                await new Promise(r => setTimeout(r, 150));
             } catch (e) {
                 console.error('[SerialStore] Polling failed:', e);
             }
@@ -573,21 +583,30 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             throw new Error('Device is not a serial connection');
         }
 
-        const connection = await openConnection(device.port, baudRate);
+        let connection: SerialConnection;
 
-        // If the port was already open and locked, connection.reader might be null.
-        if (!connection.reader) {
-            console.error('[Serial] Port is externally locked. Registry recovery failed.');
-            return;
+        try {
+            connection = await openConnection(device.port, baudRate);
+
+            // If the port was already open and locked, connection.reader might be null.
+            if (!connection.reader) {
+                console.error('[Serial] Port is externally locked. Registry recovery failed.');
+                throw new Error('Serial Port is locked by another application. Please close the Arduino IDE Serial Monitor and try again.');
+            }
+
+            set((s) => ({
+                devices: s.devices.map((d) =>
+                    d.id === deviceId
+                        ? { ...d, connection, baudRate, status: 'reading' as const }
+                        : d
+                ),
+            }));
+        } catch (err: any) {
+            if (err.name === 'NetworkError' || err.message?.includes('Failed to open')) {
+                throw new Error('Port Busy: Close the Arduino IDE Serial Monitor or other serial tools before connecting.');
+            }
+            throw err;
         }
-
-        set((s) => ({
-            devices: s.devices.map((d) =>
-                d.id === deviceId
-                    ? { ...d, connection, baudRate, status: 'reading' as const }
-                    : d
-            ),
-        }));
 
         // Optimized Throttled Line Buffering
         let lineBuffer = '';
@@ -614,7 +633,7 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             connection,
             (text) => {
                 lineBuffer += text;
-                const parts = lineBuffer.split(/\r?\n/);
+                const parts = lineBuffer.split(/\r\n|\r|\n/);
 
                 if (parts.length > 1) {
                     const completeLines = parts.slice(0, -1).filter(l => l.trim());
@@ -627,6 +646,13 @@ export const useSerialStore = create<SerialState>((set, get) => ({
                         for (const line of completeLines) {
                             const result = parseOBDLine(line);
                             if (result) {
+                                // 🛡️ CUSTOM: Auto-switch to sniffer mode if we see Ghost Sniffer or raw IDs
+                                if (result.key === 'SYSTEM_STATUS' && result.data.value === 'READY' || result.key.startsWith('RAW_CAN_')) {
+                                    set(s => ({
+                                        devices: s.devices.map(d => d.id === deviceId ? { ...d, mode: 'sniffer' } : d)
+                                    }));
+                                }
+
                                 set(s => ({
                                     liveReadings: {
                                         ...s.liveReadings,

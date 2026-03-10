@@ -5,10 +5,14 @@ import { Sparkles, ShieldCheck, Mail, Ban, AlertTriangle, CheckCircle2, ShieldAl
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
 import { usePathname } from 'next/navigation';
+import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
 export default function AuthOverlay() {
     const { user, profile, isLoading, signOut, clearWarning } = useAuthStore();
     const pathname = usePathname();
+
+    // 0. TEMPORARY BYPASS (Vercel/Auth Outage)
+    if (MAINTENANCE_CONFIG.isAuthBypassEnabled) return null;
 
     // 0. Disable overlay on specific public/auth pages
     if (pathname === '/auth/auth-code-error') return null;

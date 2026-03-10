@@ -180,8 +180,68 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
         }
     }
 
-    // 4. Handle ELM327 status messages
-    const upper = cleanLine.toUpperCase();
+    // 5. Handle Service 03 (Stored DTCs) and 07 (Pending DTCs)
+    if (cleanLine.startsWith('43') || cleanLine.startsWith('47')) {
+        const isPending = cleanLine.startsWith('47');
+        const dtcs: string[] = [];
+        // Each DTC is 2 bytes (4 hex chars). Standard OBD2 response starts after '43' or '47'
+        for (let i = 2; i + 3 < cleanLine.length; i += 4) {
+            const byte1 = cleanLine.substring(i, i + 2);
+            const byte2 = cleanLine.substring(i + 2, i + 4);
+            if (byte1 === '00' && byte2 === '00') continue; // Skip padding
+            dtcs.push(decodeDTC(byte1, byte2));
+        }
+
+        if (dtcs.length === 0) {
+            return {
+                key: isPending ? 'PENDING_DTC' : 'STORED_DTC',
+                data: { value: 'None', unit: '', label: isPending ? 'Pending Codes' : 'Stored Codes' }
+            };
+        }
+
+        return {
+            key: isPending ? 'PENDING_DTC' : 'STORED_DTC',
+            data: {
+                value: dtcs.join(', '),
+                unit: '',
+                label: isPending ? 'Pending Trouble Codes' : 'Stored Trouble Codes'
+            }
+        };
+    }
+
+    // 6. Handle Custom Arduino Sniffer Format (ID:0x7E8 D:43 01 ...)
+    const upper = line.trim().toUpperCase();
+    if (upper.startsWith('ID:0X')) {
+        const idPart = upper.split('D:')[0].replace('ID:0X', '').trim();
+        const dataPart = upper.split('D:')[1]?.trim() || '';
+
+        // 🕵️ SCAVENGER: Even if it's raw CAN, check if Service 09 (VIN) or Service 62 (UDS) is hiding inside
+        const scavengeLine = dataPart.replace(/\s+/g, '');
+        const hasService09 = scavengeLine.includes('4902');
+        const hasService62 = scavengeLine.includes('62F190');
+
+        if (hasService09 || hasService62) {
+            const startIndex = hasService09 ? scavengeLine.indexOf('4902') : scavengeLine.indexOf('62F190');
+            return parseOBDLine(scavengeLine.substring(startIndex));
+        }
+
+        // Check if this is an OBD-style response (e.g. 0x7E8)
+        if (dataPart.startsWith('41') || dataPart.startsWith('43') || dataPart.startsWith('47') || dataPart.startsWith('49')) {
+            // Recurse using the data content to reuse existing OBD logic
+            return parseOBDLine(dataPart.trim());
+        }
+
+        return {
+            key: `RAW_CAN_0x${idPart}`,
+            data: {
+                value: dataPart,
+                unit: 'HEX',
+                label: `CAN ID: 0x${idPart}`
+            }
+        };
+    }
+
+    // 7. Handle ELM327 status messages
     if (upper === 'NODATA' || upper === 'SEARCHING' || upper === 'STOPPED' || upper === 'BUSINIT') {
         const labels: Record<string, string> = {
             'NODATA': 'ECU Not Responding (No Data)',
@@ -192,6 +252,14 @@ export function parseOBDLine(line: string): { key: string; data: { value: number
         return {
             key: 'ELM_STATUS',
             data: { value: upper, unit: '', label: labels[upper] || upper }
+        };
+    }
+
+    // 8. Handle Custom Greetings
+    if (upper.includes('GHOST_SNIFFER_ACTIVE')) {
+        return {
+            key: 'SYSTEM_STATUS',
+            data: { value: 'READY', unit: '', label: 'Ghost Sniffer Active' }
         };
     }
 

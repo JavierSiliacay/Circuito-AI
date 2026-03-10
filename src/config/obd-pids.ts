@@ -16,6 +16,7 @@ export interface OBDPID {
 }
 
 export const MODE01_PIDS: Record<string, OBDPID> = {
+    "01": { "pid": "01", "bytes": 4, "description": "Monitor status: MIL status and DTC count" },
     "04": { "pid": "04", "bytes": 1, "description": "Calculated engine load value", "unit": "%", "fact": 100, "div": 255 },
     "05": { "pid": "05", "bytes": 1, "description": "Engine coolant temperature", "unit": "°C", "offs": -40 },
     "06": { "pid": "06", "bytes": 1, "description": "Short term fuel % trim—Bank 1", "unit": "%", "fact": 100, "div": 128, "offs": -100 },
@@ -48,6 +49,11 @@ export const MODE09_PIDS: Record<string, OBDPID> = {
 };
 
 export const OBD_FORMULAS: Record<string, (bytes: number[]) => number | string> = {
+    "01": (bytes) => {
+        const milOn = (bytes[0] & 0x80) !== 0;
+        const dtcCount = bytes[0] & 0x7F;
+        return `${milOn ? 'MIL ON' : 'CLEAN'} (${dtcCount} DTCs)`;
+    },
     "0B": (bytes) => bytes[0],
     "1F": (bytes) => bytes[0] * 256 + bytes[1],
     "21": (bytes) => bytes[0] * 256 + bytes[1],
