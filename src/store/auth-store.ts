@@ -49,7 +49,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
 
             const adminEmails = [
-                'siliacay.javier@gmail.com',
                 'javiersiliacaysiliacay1234@gmail.com',
                 'javiersiliacay12@gmail.com'
             ];
