@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
@@ -7,12 +7,16 @@ export async function GET(request: Request) {
     const next = searchParams.get('next') ?? '/';
 
     if (code) {
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        const supabase = await createClient();
+
         const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (!error && session?.user) {
+
+        if (error) {
+            console.error('[Auth Callback] Exchange Error:', error);
+            return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+        }
+
+        if (session?.user) {
             const user = session.user;
 
             // 1. Ensure profile exists - logic to handle "deleted auth but profile remains"
