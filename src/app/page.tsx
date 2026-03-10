@@ -1090,58 +1090,76 @@ export default function Home() {
               <ChevronDown className="w-3 h-3 opacity-30" />
             </button>
 
-            {profile?.warning_message && (
-              <div className="relative">
-                <button
-                  onClick={() => setIsInboxOpen(!isInboxOpen)}
-                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${isInboxOpen ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-500' : 'bg-white/5 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/10'}`}
-                >
-                  <Bell className="w-4.5 h-4.5 animate-bounce" />
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#0A0F1C]" />
-                </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsInboxOpen(!isInboxOpen)}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${isInboxOpen
+                  ? 'bg-white/10 border-white/20 text-white'
+                  : profile?.warning_message
+                    ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/20'
+                    : 'bg-white/5 border-white/10 text-text-muted hover:text-white hover:bg-white/10'}`}
+              >
+                <Bell className={`w-4.5 h-4.5 ${profile?.warning_message ? 'animate-bounce' : ''}`} />
+                {profile?.warning_message && (
+                  <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-[#0A0F1C] shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+                )}
+              </button>
 
-                <AnimatePresence>
-                  {isInboxOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 mt-3 w-80 bg-[#0D121F] border border-yellow-500/30 rounded-[24px] p-6 shadow-2xl z-50 overflow-hidden"
-                    >
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-                            <AlertCircle className="w-3 h-3 text-yellow-500" />
-                            System Notice
-                          </h3>
-                          <button onClick={() => setIsInboxOpen(false)}>
-                            <X className="w-4 h-4 text-text-muted hover:text-white" />
+              <AnimatePresence>
+                {isInboxOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-3 w-80 bg-[#0D121F] border border-white/10 rounded-[24px] p-6 shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
+                          <Bell className="w-3 h-3 text-cyan-primary" />
+                          Notifications
+                        </h3>
+                        <button onClick={() => setIsInboxOpen(false)}>
+                          <X className="w-4 h-4 text-text-muted hover:text-white" />
+                        </button>
+                      </div>
+
+                      {profile?.warning_message ? (
+                        <div className="space-y-4">
+                          <div className="p-4 rounded-2xl bg-yellow-500/5 border border-yellow-500/10">
+                            <p className="text-[13px] text-text-secondary leading-relaxed italic">
+                              "{profile.warning_message}"
+                            </p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              await clearWarning();
+                              setIsInboxOpen(false);
+                            }}
+                            className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-yellow-500 text-black font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Acknowledge Message
                           </button>
-                        </div>
-                        <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                          <p className="text-[13px] text-text-secondary leading-relaxed italic">
-                            "{profile.warning_message}"
+                          <p className="text-[9px] text-center text-text-muted uppercase tracking-tighter opacity-50">
+                            This will clear the message from your inbox
                           </p>
                         </div>
-                        <button
-                          onClick={async () => {
-                            await clearWarning();
-                            setIsInboxOpen(false);
-                          }}
-                          className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-yellow-500 text-black font-black text-[11px] uppercase tracking-widest hover:opacity-90 transition-all shadow-lg"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Acknowledge Message
-                        </button>
-                        <p className="text-[9px] text-center text-text-muted uppercase tracking-tighter opacity-50">
-                          Acknowledging will clear this from your inbox
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+                      ) : (
+                        <div className="py-8 text-center space-y-2">
+                          <div className="w-12 h-12 rounded-full bg-white/5 mx-auto flex items-center justify-center">
+                            <Bell className="w-5 h-5 text-text-muted opacity-20" />
+                          </div>
+                          <p className="text-[10px] font-black text-text-muted uppercase tracking-widest leading-relaxed">
+                            No New<br />Notifications
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
