@@ -889,10 +889,23 @@ export default function Home() {
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <div className={`w-1 h-1 rounded-full ${promptCount < 20 ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
                       <span className="text-[10px] font-bold text-text-muted/60 uppercase tracking-wider">
-                        {user
-                          ? (isAdmin ? 'Admin Console' : `${profile?.category || 'Authorized'} Mode`)
-                          : `Guest Mode (${Math.max(0, 20 - promptCount)} prompts left)`
-                        }
+                        {user ? (
+                          isAdmin ? 'Admin Console' : (() => {
+                            const categoryMap = {
+                              student: 'Student',
+                              enthusiast: 'Enthusiast',
+                              mechanic: 'Mechanic'
+                            };
+                            const baseRole = categoryMap[profile?.category as keyof typeof categoryMap] || 'Authorized';
+                            const isVerified = profile?.verification_status === 'verified';
+                            const hasFullAccess = profile?.has_ai_access && profile?.has_diag_access;
+
+                            if (isVerified && hasFullAccess) {
+                              return `${baseRole} Mode with Full Access`;
+                            }
+                            return `${baseRole} Mode`;
+                          })()
+                        ) : `Guest Mode (${Math.max(0, 20 - promptCount)} prompts left)`}
                       </span>
                     </div>
                   </div>
