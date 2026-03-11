@@ -128,35 +128,35 @@ export default function DashboardPage() {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.3, delay: 0.1 }}
-                            className="flex items-center gap-6 p-4 rounded-xl bg-surface-2/30 border border-border-dim mb-6"
+                            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6 p-4 rounded-xl bg-surface-2/30 border border-border-dim mb-6 shadow-lg shadow-black/20"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-primary/20 to-cyan-primary/5 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-primary/20 to-cyan-primary/5 flex items-center justify-center shrink-0">
                                     <Cpu className="w-5 h-5 text-cyan-primary" />
                                 </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-text-primary">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-text-primary truncate">
                                         {activeDevice.name}
                                     </p>
-                                    <p className="text-[11px] text-text-muted">
+                                    <p className="text-[11px] text-text-muted truncate">
                                         {activeDevice.baudRate} baud
                                         {activeDevice.vendorId ? ` • VID: 0x${activeDevice.vendorId.toString(16).toUpperCase()}` : ''}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex-1" />
-                            <div className="flex items-center gap-6 text-xs">
-                                <div className="text-center">
+                            <div className="hidden sm:block flex-1" />
+                            <div className="flex items-center justify-between sm:justify-end gap-6 text-[11px] sm:text-xs pt-3 sm:pt-0 border-t sm:border-t-0 border-border-dim">
+                                <div className="text-left sm:text-center">
                                     <p className="text-text-muted">Status</p>
                                     <p className="font-semibold text-green-success mt-0.5 flex items-center gap-1">
-                                        <Wifi className="w-3 h-3" />
+                                        <Wifi className="w-3.5 h-3.5" />
                                         Reading
                                     </p>
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-text-muted">Lines Received</p>
+                                <div className="text-right sm:text-center">
+                                    <p className="text-text-muted">Sequence</p>
                                     <p className="font-semibold text-text-primary mt-0.5">
-                                        {serialOutput.length}
+                                        #{serialOutput.length}
                                     </p>
                                 </div>
                             </div>

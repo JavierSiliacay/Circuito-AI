@@ -113,7 +113,7 @@ export default function DevicesPage() {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4 }}
-                    className="flex items-center justify-between mb-8"
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8"
                 >
                     <div>
                         <h1 className="text-2xl font-bold text-text-primary">Devices</h1>
@@ -167,7 +167,7 @@ export default function DevicesPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.15 }}
-                    className="grid grid-cols-4 gap-4 mb-8"
+                    className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8"
                 >
                     {[
                         { label: 'Total Devices', value: String(devices.length), icon: Cpu, color: 'text-cyan-primary' },
@@ -229,56 +229,58 @@ export default function DevicesPage() {
                                 transition={{ duration: 0.3, delay: 0.2 + i * 0.05 }}
                                 className="group p-4 rounded-xl bg-surface-2/30 border border-border-dim hover:border-border-bright transition-all"
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                     {/* Status dot & icon */}
-                                    <div className="relative">
-                                        <div className="w-10 h-10 rounded-xl bg-surface-3/60 flex items-center justify-center">
-                                            <Cpu className="w-5 h-5 text-cyan-primary" />
+                                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                                        <div className="relative shrink-0">
+                                            <div className="w-10 h-10 rounded-xl bg-surface-3/60 flex items-center justify-center">
+                                                <Cpu className="w-5 h-5 text-cyan-primary" />
+                                            </div>
+                                            <span
+                                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface-base ${getStatusColor(
+                                                    device.status
+                                                )} ${device.status === 'reading' ? 'animate-pulse-dot' : ''}`}
+                                            />
                                         </div>
-                                        <span
-                                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface-base ${getStatusColor(
-                                                device.status
-                                            )} ${device.status === 'reading' ? 'animate-pulse-dot' : ''}`}
-                                        />
-                                    </div>
 
-                                    {/* Info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <h3 className="text-sm font-semibold text-text-primary">
-                                                {device.name}
-                                            </h3>
-                                            {getStatusBadge(device.status)}
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                                                <h3 className="text-sm font-semibold text-text-primary">
+                                                    {device.name}
+                                                </h3>
+                                                {getStatusBadge(device.status)}
+                                            </div>
+                                            <p className="text-xs text-text-muted truncate">
+                                                {device.vendorId
+                                                    ? `VID: 0x${device.vendorId.toString(16).toUpperCase().padStart(4, '0')}`
+                                                    : 'USB Serial Device'}
+                                                {device.productId
+                                                    ? ` • PID: 0x${device.productId.toString(16).toUpperCase().padStart(4, '0')}`
+                                                    : ''}
+                                                {device.status === 'reading'
+                                                    ? ` • ${device.baudRate} baud`
+                                                    : ''}
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-text-muted">
-                                            {device.vendorId
-                                                ? `VID: 0x${device.vendorId.toString(16).toUpperCase().padStart(4, '0')}`
-                                                : 'USB Serial Device'}
-                                            {device.productId
-                                                ? ` • PID: 0x${device.productId.toString(16).toUpperCase().padStart(4, '0')}`
-                                                : ''}
-                                            {device.status === 'reading'
-                                                ? ` • ${device.baudRate} baud`
-                                                : ''}
-                                        </p>
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleToggleSerial(device.id, device.status)}
-                                            className="text-xs bg-surface-2/50 border-border-dim hover:bg-surface-3"
+                                            className="flex-1 sm:flex-none text-xs bg-surface-2/50 border-border-dim hover:bg-surface-3"
                                         >
-                                            <MonitorSmartphone className="w-3.5 h-3.5 mr-1.5" />
+                                            <MonitorSmartphone className="w-3.5 h-3.5 mr-2" />
                                             {device.status === 'reading' ? 'Stop' : 'Monitor'}
                                         </Button>
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleDisconnect(device.id)}
-                                            className="text-xs border-red-error/30 text-red-error hover:bg-red-error/10"
+                                            className="flex-1 sm:flex-none text-xs border-red-error/30 text-red-error hover:bg-red-error/10"
                                         >
                                             Disconnect
                                         </Button>

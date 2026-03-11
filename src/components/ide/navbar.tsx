@@ -12,11 +12,13 @@ import {
     BookOpen,
     Check,
     ArrowRight,
+    Menu,
+    X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSerialStore } from '@/store/serial-store';
 import { useEffect, useState } from 'react';
 import BoardManager from '@/components/board-manager';
@@ -50,6 +52,14 @@ export default function IDENavbar() {
     const [isBoardManagerOpen, setIsBoardManagerOpen] = useState(false);
     const [isLibraryManagerOpen, setIsLibraryManagerOpen] = useState(false);
     const [selectedBoard, setSelectedBoard] = useState<BoardDefinition | null>(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const navLinks = [
+        { href: '/diagnostic', label: 'Diagnostic' },
+        { href: '/flash', label: 'Flash' },
+        { href: '/devices', label: 'Device Manager' },
+        { href: '/dashboard', label: 'Hub' },
+    ];
 
     useEffect(() => {
         init();
@@ -116,19 +126,14 @@ export default function IDENavbar() {
                 </Link>
 
 
-                {/* Navigation Links */}
-                <nav className="hidden md:flex items-center gap-1 ml-4">
-                    {[
-                        { href: '/diagnostic', label: 'Diagnostic' },
-                        { href: '/flash', label: 'Flash' },
-                        { href: '/devices', label: 'Device Manager' },
-                        { href: '/dashboard', label: 'Hub' },
-                    ].map((link) => (
+                {/* Navigation Links (Desktop) */}
+                <nav className="hidden lg:flex items-center gap-1 ml-4">
+                    {navLinks.map((link) => (
                         <Link
                             key={link.href}
                             href={link.href}
-                            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${pathname === link.href
-                                ? 'text-cyan-primary bg-cyan-primary/10'
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${pathname === link.href
+                                ? 'text-cyan-primary bg-cyan-primary/10 border border-cyan-primary/20'
                                 : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
                                 }`}
                         >
@@ -140,26 +145,26 @@ export default function IDENavbar() {
                 <div className="flex-1" />
 
 
-                {/* Board Selector */}
+                {/* Board Selector - Hidden on very small screens */}
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsBoardManagerOpen(true)}
-                    className="h-7 px-3 text-xs gap-1.5 bg-surface-3/60 border border-border-dim hover:bg-surface-4 hover:border-border-bright"
+                    className="hidden sm:flex h-7 px-3 text-xs gap-1.5 bg-surface-3/60 border border-border-dim hover:bg-surface-4 hover:border-border-bright rounded-lg"
                 >
                     <Cpu className="w-3 h-3 text-cyan-primary" />
-                    <span className="text-text-primary font-medium">
+                    <span className="text-text-primary font-medium max-w-[100px] truncate">
                         {selectedBoard?.name || 'Select Board'}
                     </span>
                     <ChevronDown className="w-3 h-3 text-text-muted" />
                 </Button>
 
-                {/* Library Manager */}
+                {/* Library Manager - Hidden on mobile */}
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsLibraryManagerOpen(true)}
-                    className="h-7 px-3 text-xs gap-1.5 bg-surface-3/60 border border-border-dim hover:bg-surface-4 hover:border-border-bright"
+                    className="hidden md:flex h-7 px-3 text-xs gap-1.5 bg-surface-3/60 border border-border-dim hover:bg-surface-4 hover:border-border-bright rounded-lg"
                 >
                     <BookOpen className="w-3 h-3 text-purple-ai" />
                     <span className="text-text-muted">Libraries</span>
@@ -200,11 +205,11 @@ export default function IDENavbar() {
                     </Button>
                 </Link>
 
-                {/* Settings */}
+                {/* Settings - Hidden on Mobile */}
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-text-muted hover:text-text-primary hover:bg-white/5"
+                    className="hidden sm:flex h-7 w-7 p-0 text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg"
                 >
                     <Settings className="w-4 h-4" />
                 </Button>
@@ -212,7 +217,71 @@ export default function IDENavbar() {
                 {/* User Avatar */}
                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-ai to-indigo-500 flex items-center justify-center text-[10px] font-bold text-white cursor-pointer hover:ring-2 hover:ring-cyan-primary/40 transition-all">
                     U
+                    {/* Mobile Menu Toggle */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        className="lg:hidden h-7 w-7 p-0 text-text-muted hover:text-text-primary hover:bg-white/5 rounded-lg"
+                    >
+                        {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                    </Button>
                 </div>
+
+                {/* Mobile Navigation Overlay */}
+                <AnimatePresence>
+                    {isMobileMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="lg:hidden border-t border-border-dim bg-surface-base overflow-hidden"
+                        >
+                            <nav className="flex flex-col p-4 gap-2">
+                                {navLinks.map((link) => (
+                                    <Link
+                                        key={link.href}
+                                        href={link.href}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                        className={`px-4 py-3 text-sm font-semibold rounded-xl transition-all ${pathname === link.href
+                                            ? 'text-cyan-primary bg-cyan-primary/10 border border-cyan-primary/20'
+                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                            }`}
+                                    >
+                                        {link.label}
+                                    </Link>
+                                ))}
+                                <div className="h-px bg-border-dim my-2" />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsBoardManagerOpen(true);
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className="h-10 text-xs gap-2 bg-surface-3/60 border border-border-dim rounded-xl"
+                                    >
+                                        <Cpu className="w-4 h-4 text-cyan-primary" />
+                                        Board
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsLibraryManagerOpen(true);
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className="h-10 text-xs gap-2 bg-surface-3/60 border border-border-dim rounded-xl"
+                                    >
+                                        <BookOpen className="w-4 h-4 text-purple-ai" />
+                                        Libs
+                                    </Button>
+                                </div>
+                            </nav>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.header>
 
             {/* Board Manager Modal */}

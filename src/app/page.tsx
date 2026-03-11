@@ -255,7 +255,6 @@ export default function Home() {
   const [localPathInput, setLocalPathInput] = useState(localProjectPath);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -879,21 +878,19 @@ export default function Home() {
         {isSidebarOpen && (
           <>
             {/* Backdrop for Mobile */}
-            {isMobile && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsSidebarOpen(false)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-              />
-            )}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            />
             <motion.aside
               initial={{ x: -300, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -300, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className={`fixed lg:relative h-full bg-[#0F1629]/98 lg:bg-[#0F1629]/95 backdrop-blur-2xl border-r border-white/5 flex flex-col overflow-hidden shrink-0 z-50 ${isMobile ? 'w-[280px]' : 'w-[300px]'}`}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed lg:relative h-full w-72 bg-[#0A0F1C] border-r border-white/5 flex flex-col shrink-0 z-50 overflow-hidden"
             >
               {/* Brand Header */}
               <div className="p-5 border-b border-white/5">
@@ -1541,7 +1538,7 @@ export default function Home() {
             )}
         </div>
 
-        <div className="px-6 py-4 bg-gradient-to-t from-[#0A0F1C] via-[#0A0F1C] to-transparent">
+        <div className="px-4 sm:px-6 py-4 bg-gradient-to-t from-[#0A0F1C] via-[#0A0F1C] to-transparent shrink-0">
           <div className="w-full max-w-2xl mx-auto relative group">
             <div className="absolute inset-0 bg-cyan-primary/5 blur-3xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
             <div className="relative flex items-end bg-[#0F1629]/80 backdrop-blur-xl border border-white/10 rounded-2xl focus-within:border-cyan-primary/40 focus-within:shadow-[0_0_40px_rgba(0,217,255,0.05)] transition-all overflow-hidden">
@@ -1552,21 +1549,21 @@ export default function Home() {
                 onKeyDown={handleKeyDown}
                 placeholder="Message Circuito AI..."
                 rows={1}
-                className="flex-1 bg-transparent px-5 py-4 text-[14px] text-white placeholder:text-text-muted/60 outline-none resize-none max-h-[160px] leading-relaxed font-medium"
+                className="flex-1 bg-transparent px-3 sm:px-5 py-3 sm:py-4 text-[13px] sm:text-[14px] text-white placeholder:text-text-muted/60 outline-none resize-none max-h-[160px] leading-relaxed font-medium"
               />
-              <div className="p-2.5">
+              <div className="p-2 sm:p-2.5">
                 <button
                   onClick={() => handleSend()}
                   disabled={!input.trim() || isTyping}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-cyan-primary to-blue-600 hover:scale-105 active:scale-95 text-[#0A0F1C] transition-all disabled:opacity-20 disabled:grayscale disabled:scale-100 shadow-lg shadow-cyan-primary/20"
+                  className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-gradient-to-br from-cyan-primary to-blue-600 hover:scale-105 active:scale-95 text-[#0A0F1C] transition-all disabled:opacity-20 disabled:grayscale disabled:scale-100 shadow-lg shadow-cyan-primary/20"
                 >
-                  {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {isTyping ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 </button>
               </div>
             </div>
-            <div className="flex justify-center mt-4">
-              <p className="text-[10px] font-bold text-text-muted/40 tracking-[0.2em] uppercase flex items-center gap-2">
-                <Zap className="w-3 h-3 text-cyan-primary/40" />
+            <div className="flex justify-center mt-3 sm:mt-4">
+              <p className="text-[8px] sm:text-[10px] font-bold text-text-muted/40 tracking-[0.2em] uppercase flex items-center gap-2">
+                <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-primary/40" />
                 Neural Link Active | End-to-End Encrypted
               </p>
             </div>

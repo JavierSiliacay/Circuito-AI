@@ -200,10 +200,10 @@ export default function FlashPage() {
         <div className="h-screen flex flex-col overflow-hidden bg-surface-base">
             <IDENavbar />
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 {/* Main content */}
                 <div className="flex-1 overflow-y-auto">
-                    <div className="max-w-4xl mx-auto px-6 py-8">
+                    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
                         {/* Breadcrumb */}
                         <nav className="flex items-center gap-2 text-xs text-text-muted mb-6">
                             <Link href="/" className="hover:text-text-primary transition-colors">
@@ -223,10 +223,10 @@ export default function FlashPage() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4 }}
                         >
-                            <h1 className="text-3xl font-bold text-text-primary mb-2">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
                                 Flash Firmware
                             </h1>
-                            <p className="text-sm text-text-secondary mb-8">
+                            <p className="text-xs sm:text-sm text-text-secondary mb-6 sm:mb-8">
                                 Connect your board, select the target, and upload your compiled binary to flash.
                             </p>
                         </motion.div>
@@ -317,7 +317,7 @@ export default function FlashPage() {
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {installedBoards.slice(0, 9).map((board: BoardDefinition, i: number) => (
                                     <motion.button
                                         key={board.id}
@@ -386,7 +386,7 @@ export default function FlashPage() {
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
-                                className={`relative rounded-xl border-2 border-dashed transition-all duration-300 p-12 text-center cursor-pointer ${firmwareFile
+                                className={`relative rounded-xl border-2 border-dashed transition-all duration-300 p-8 sm:p-12 text-center cursor-pointer ${firmwareFile
                                     ? 'border-green-success/40 bg-green-success/5'
                                     : 'border-border-dim hover:border-cyan-primary/30 hover:bg-cyan-primary/5 bg-surface-2/30'
                                     }`}
@@ -473,7 +473,7 @@ export default function FlashPage() {
                     initial={{ x: 100, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
-                    className="w-96 bg-surface-1 border-l border-border-dim flex flex-col shrink-0"
+                    className="w-full lg:w-80 xl:w-96 bg-surface-1 border-t lg:border-t-0 lg:border-l border-border-dim flex flex-col shrink-0 h-[400px] lg:h-auto"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4 border-b border-border-dim">
