@@ -16,12 +16,11 @@ import {
     Monitor,
     Trash2,
     Ban,
+    MessageSquare,
     ShieldAlert,
     RotateCcw,
     Search,
-    StickyNote,
-    HeartPulse,
-    MessageSquare
+    StickyNote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -263,7 +262,6 @@ export default function AdminPage() {
                     )}
                 </div>
             </div>
-
 
             {/* User Permissions Management */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

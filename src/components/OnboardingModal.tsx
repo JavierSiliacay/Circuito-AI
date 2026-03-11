@@ -68,16 +68,15 @@ export default function OnboardingModal() {
                 .from('verification-docs')
                 .getPublicUrl(filePath);
 
-            // 3. Update Profile (Upsert to handle missing rows for new users)
+            // 3. Update Profile
             const { error: updateError } = await supabase
                 .from('profiles')
-                .upsert({
-                    id: user.id,
-                    email: user.email,
+                .update({
                     category,
                     document_url: publicUrl,
                     verification_status: 'pending'
-                }, { onConflict: 'id' });
+                })
+                .eq('id', user.id);
 
             if (updateError) throw updateError;
 

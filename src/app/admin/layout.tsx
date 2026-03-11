@@ -1,34 +1,11 @@
 'use client';
 
 import { useAuthStore } from '@/store/auth-store';
-import { ShieldAlert, Loader2, HeartPulse, MessageSquare } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const { isAdmin, isLoading, user } = useAuthStore();
-
-    useEffect(() => {
-        if (!user || !isAdmin) return;
-
-        // Update presence every 30 seconds
-        const updatePresence = async () => {
-            const { error } = await supabase
-                .from('admin_presence')
-                .upsert({
-                    admin_id: user.id,
-                    last_seen: new Date().toISOString()
-                }, { onConflict: 'admin_id' });
-
-            if (error) console.error('Admin presence update failed:', error);
-        };
-
-        updatePresence();
-        const interval = setInterval(updatePresence, 30000);
-
-        return () => clearInterval(interval);
-    }, [user, isAdmin]);
 
     if (isLoading) {
         return (
