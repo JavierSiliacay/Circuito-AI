@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Content is required' }, { status: 400 });
     }
 
-    // 1. Verify User Approval Status
-    const { data: profile } = await supabase
+    // 1. Verify User Approval Status (Security Layer)
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('verification_status')
         .eq('id', user.id)
