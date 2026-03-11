@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 
 const AuthOverlay = dynamic(() => import('@/components/AuthOverlay'), { ssr: false });
 const OnboardingModal = dynamic(() => import('@/components/OnboardingModal'), { ssr: false });
+const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget').then(mod => mod.ChatWidget), { ssr: false });
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient());
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <TooltipProvider delayDuration={200}>
                 <AuthOverlay />
                 <OnboardingModal />
+                <ChatWidget />
                 {children}
             </TooltipProvider>
         </QueryClientProvider>

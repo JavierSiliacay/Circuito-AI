@@ -14,7 +14,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Content is required' }, { status: 400 });
     }
 
-    // 1. Save the user's message
+    // 1. Verify User Approval Status
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('verification_status')
+        .eq('id', user.id)
+        .single();
+
+    if (profile?.verification_status !== 'verified') {
+        return NextResponse.json({ error: 'Access denied. Account not approved.' }, { status: 403 });
+    }
+
+    // 2. Save the user's message
     const { data: userMsg, error: userMsgError } = await supabase
         .from('admin_user_messages')
         .insert({

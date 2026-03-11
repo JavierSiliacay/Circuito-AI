@@ -20,18 +20,26 @@ export function ChatWidget() {
     const [input, setInput] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
-    const { user, isAdmin } = useAuthStore();
+    const { user, isAdmin, profile } = useAuthStore();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
 
-    // Don't show for admins or if not mounted or no user
+    // 1. Hide for admins and guests
     if (!isMounted || isAdmin || !user) return null;
 
+    // 2. Access control logic
+    const isApproved = profile?.verification_status === 'verified';
+    const isPending = profile?.verification_status === 'pending';
+    const isDenied = profile?.verification_status === 'rejected' || profile?.verification_status === 'banned' || profile?.verification_status === 'deleted';
+
+    // Completely hide for Denied or Null status (except pending)
+    if (isDenied || (!isApproved && !isPending)) return null;
+
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen || !isApproved) return;
 
         // Fetch initial messages
         const fetchMessages = async () => {
@@ -64,7 +72,7 @@ export function ChatWidget() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [isOpen, user.id]);
+    }, [isOpen, user.id, isApproved]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -74,7 +82,7 @@ export function ChatWidget() {
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || isSending) return;
+        if (!input.trim() || isSending || !isApproved) return;
 
         const content = input.trim();
         setInput('');
@@ -105,19 +113,21 @@ export function ChatWidget() {
                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="absolute bottom-20 right-0 w-[400px] h-[600px] bg-[#0D121F] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden"
+                        className="absolute bottom-20 right-0 w-[400px] h-[500px] bg-[#0D121F] border border-white/10 rounded-[32px] shadow-2xl flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-white/10 bg-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-cyan-primary/20 flex items-center justify-center border border-cyan-primary/30">
-                                    <User className="w-5 h-5 text-cyan-primary" />
+                                    <Bot className="w-5 h-5 text-cyan-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-black text-white uppercase tracking-tight">Admin Support</h3>
+                                    <h3 className="text-sm font-black text-white uppercase tracking-tight">Support Center</h3>
                                     <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                        <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">Active Thread</p>
+                                        <div className={`w-1.5 h-1.5 rounded-full ${isApproved ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+                                        <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
+                                            {isApproved ? 'Live Channel' : 'Account Verification Required'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -129,71 +139,96 @@ export function ChatWidget() {
                             </button>
                         </div>
 
-                        {/* Messages */}
-                        <div
-                            ref={scrollRef}
-                            className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
-                        >
-                            {messages.length === 0 && (
-                                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
-                                    <MessageSquare className="w-12 h-12 text-white/5" />
-                                    <p className="text-xs text-text-muted font-medium">
-                                        Ask the admin anything. If they are offline, our AI will step in to help.
-                                    </p>
-                                </div>
-                            )}
-                            {messages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
-                                >
-                                    <div className={`max-w-[80%] p-4 rounded-[20px] text-sm ${msg.sender_id === user.id
-                                        ? 'bg-cyan-primary text-black font-medium rounded-tr-none'
-                                        : msg.is_ai_response
-                                            ? 'bg-purple-ai/20 border border-purple-ai/30 text-white rounded-tl-none'
-                                            : 'bg-white/5 text-white border border-white/10 rounded-tl-none'
-                                        }`}>
-                                        {msg.is_ai_response && (
-                                            <div className="flex items-center gap-1.5 mb-2 opacity-60">
-                                                <Bot className="w-3 h-3" />
-                                                <span className="text-[9px] font-black uppercase tracking-widest">AI Assistant</span>
-                                            </div>
-                                        )}
-                                        <p className="leading-relaxed">{msg.content}</p>
-                                        <p className="text-[9px] mt-2 opacity-40 font-bold uppercase tracking-wider">
-                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {/* Content Area */}
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                            {!isApproved ? (
+                                <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-6">
+                                    <div className="w-16 h-16 rounded-3xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                                        <Loader2 className="w-8 h-8 animate-spin" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <p className="text-lg font-black text-white uppercase tracking-tight">Pending Approval</p>
+                                        <p className="text-sm text-text-muted leading-relaxed">
+                                            Chat support will be available once your account has been approved by the administrator.
                                         </p>
                                     </div>
+                                    <button
+                                        onClick={() => setIsOpen(false)}
+                                        className="px-8 py-3 rounded-full bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+                                    >
+                                        I Understand
+                                    </button>
                                 </div>
-                            ))}
-                            {isSending && (
-                                <div className="flex justify-end">
-                                    <div className="bg-cyan-primary/20 p-3 rounded-full">
-                                        <Loader2 className="w-4 h-4 text-cyan-primary animate-spin" />
+                            ) : (
+                                <>
+                                    {/* Messages */}
+                                    <div
+                                        ref={scrollRef}
+                                        className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
+                                    >
+                                        {messages.length === 0 && (
+                                            <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
+                                                <MessageSquare className="w-12 h-12 text-white/5" />
+                                                <p className="text-xs text-text-muted font-medium">
+                                                    Ask the admin anything. If they are offline, our AI will step in to help.
+                                                </p>
+                                            </div>
+                                        )}
+                                        {messages.map((msg) => (
+                                            <div
+                                                key={msg.id}
+                                                className={`flex ${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
+                                            >
+                                                <div className={`max-w-[80%] p-4 rounded-[20px] text-sm ${msg.sender_id === user.id
+                                                    ? 'bg-cyan-primary text-black font-medium rounded-tr-none'
+                                                    : msg.is_ai_response
+                                                        ? 'bg-purple-ai/20 border border-purple-ai/30 text-white rounded-tl-none'
+                                                        : 'bg-white/5 text-white border border-white/10 rounded-tl-none'
+                                                    }`}>
+                                                    {msg.is_ai_response && (
+                                                        <div className="flex items-center gap-1.5 mb-2 opacity-60">
+                                                            <Bot className="w-3 h-3" />
+                                                            <span className="text-[9px] font-black uppercase tracking-widest">AI Assistant</span>
+                                                        </div>
+                                                    )}
+                                                    <p className="leading-relaxed">{msg.content}</p>
+                                                    <p className="text-[9px] mt-2 opacity-40 font-bold uppercase tracking-wider">
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isSending && (
+                                            <div className="flex justify-end">
+                                                <div className="bg-cyan-primary/20 p-3 rounded-full">
+                                                    <Loader2 className="w-4 h-4 text-cyan-primary animate-spin" />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
+
+                                    {/* Input */}
+                                    <form onSubmit={handleSend} className="p-6 border-t border-white/10 bg-white/5">
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={input}
+                                                onChange={(e) => setInput(e.target.value)}
+                                                placeholder="Type your message..."
+                                                className="w-full h-12 bg-[#0D121F] border border-white/10 rounded-2xl pl-4 pr-12 text-sm text-white focus:outline-none focus:border-cyan-primary/50 transition-all"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={!input.trim() || isSending}
+                                                className="absolute right-2 top-2 h-8 w-8 rounded-xl bg-cyan-primary flex items-center justify-center text-black hover:bg-cyan-primary/80 transition-all disabled:opacity-50"
+                                            >
+                                                <Send className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </form>
+                                </>
                             )}
                         </div>
-
-                        {/* Input */}
-                        <form onSubmit={handleSend} className="p-6 border-t border-white/10 bg-white/5">
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    placeholder="Type your message..."
-                                    className="w-full h-12 bg-[#0D121F] border border-white/10 rounded-2xl pl-4 pr-12 text-sm text-white focus:outline-none focus:border-cyan-primary/50 transition-all"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!input.trim() || isSending}
-                                    className="absolute right-2 top-2 h-8 w-8 rounded-xl bg-cyan-primary flex items-center justify-center text-black hover:bg-cyan-primary/80 transition-all disabled:opacity-50"
-                                >
-                                    <Send className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </form>
                     </motion.div>
                 )}
             </AnimatePresence>
