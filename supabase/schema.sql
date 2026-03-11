@@ -135,3 +135,30 @@ DROP TRIGGER IF EXISTS update_ai_conversations_updated_at ON ai_conversations;
 CREATE TRIGGER update_ai_conversations_updated_at
     BEFORE UPDATE ON ai_conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- 6. Admin-User Chat messages
+CREATE TABLE IF NOT EXISTS admin_user_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL, -- The user this conversation belongs to
+    sender_id TEXT NOT NULL, -- sender id
+    content TEXT NOT NULL,
+    is_ai_response BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_user_messages_user_id ON admin_user_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_user_messages_created_at ON admin_user_messages(created_at ASC);
+
+ALTER TABLE admin_user_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admin_user_messages" ON admin_user_messages;
+CREATE POLICY "Allow all access to admin_user_messages" ON admin_user_messages FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Admin Presence
+CREATE TABLE IF NOT EXISTS admin_presence (
+    admin_id TEXT PRIMARY KEY,
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE admin_presence ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admin_presence" ON admin_presence;
+CREATE POLICY "Allow all access to admin_presence" ON admin_presence FOR ALL USING (true) WITH CHECK (true);

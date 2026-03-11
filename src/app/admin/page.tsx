@@ -20,9 +20,11 @@ import {
     ShieldAlert,
     RotateCcw,
     Search,
-    StickyNote
+    StickyNote,
+    HeartPulse
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AdminChatManager } from '@/components/chat/AdminChatManager';
 
 interface Profile {
     id: string;
@@ -261,6 +263,21 @@ export default function AdminPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* User Communications Section */}
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                        <MessageSquare className="w-6 h-6 text-cyan-primary" />
+                        User Communications
+                    </h2>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20">
+                        <HeartPulse className="w-3 h-3 text-cyan-primary animate-pulse" />
+                        <span className="text-[9px] font-black text-cyan-primary uppercase tracking-widest">Live Monitoring Active</span>
+                    </div>
+                </div>
+                <AdminChatManager />
             </div>
 
             {/* User Permissions Management */}
