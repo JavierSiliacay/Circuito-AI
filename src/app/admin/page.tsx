@@ -30,7 +30,7 @@ interface Profile {
     full_name: string;
     avatar_url: string;
     category: 'student' | 'enthusiast' | 'mechanic' | null;
-    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | null;
+    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | 'cancelled' | null;
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
@@ -369,7 +369,8 @@ export default function AdminPage() {
                                         <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-center ${profile.verification_status === 'verified' ? 'bg-green-success/10 text-green-success' :
                                             profile.verification_status === 'banned' ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]' :
                                                 profile.verification_status === 'deleted' ? 'bg-white/10 text-white/40' :
-                                                    'bg-red-500/10 text-red-500'
+                                                    profile.verification_status === 'cancelled' ? 'bg-orange-500/10 text-orange-400' :
+                                                        'bg-red-500/10 text-red-500'
                                             }`}>
                                             {profile.verification_status}
                                         </span>

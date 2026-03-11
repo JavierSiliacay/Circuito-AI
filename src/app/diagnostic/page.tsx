@@ -252,15 +252,43 @@ export default function DiagnosticPage() {
                             <p className="text-[11px] font-bold text-white uppercase opacity-60">
                                 Current Status: {profile?.verification_status?.toUpperCase() || 'NOT SUBMITTED'}
                             </p>
-                            <button
-                                onClick={async () => {
-                                    if (profile?.verification_status === 'pending') return;
-                                    useAuthStore.getState().setUpgradeModal(true);
-                                }}
-                                className="w-full py-3 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[10px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all shadow-[0_0_15px_rgba(34,211,238,0.05)]"
-                            >
-                                {profile?.verification_status === 'pending' ? 'Verification in Progress' : 'Submit Proof for Approval'}
-                            </button>
+                            <div className="space-y-3 w-full">
+                                <button
+                                    onClick={async () => {
+                                        if (profile?.verification_status === 'pending') return;
+                                        useAuthStore.getState().setUpgradeModal(true);
+                                    }}
+                                    disabled={profile?.verification_status === 'pending'}
+                                    className="w-full py-3 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[10px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all shadow-[0_0_15px_rgba(34,211,238,0.05)] disabled:opacity-50"
+                                >
+                                    {profile?.verification_status === 'pending' ? 'Verification in Progress' : 'Submit Proof for Approval'}
+                                </button>
+
+                                {profile?.verification_status === 'pending' && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!window.confirm('Are you sure you want to cancel your verification request?')) return;
+
+                                            const { error } = await supabase
+                                                .from('profiles')
+                                                .update({
+                                                    verification_status: 'cancelled',
+                                                    pending_category: null,
+                                                    pending_document_url: null
+                                                })
+                                                .eq('id', user.id);
+
+                                            if (!error) {
+                                                await useAuthStore.getState().checkAuth();
+                                                alert('Your request has been successfully cancelled.');
+                                            }
+                                        }}
+                                        className="w-full py-2 text-[9px] font-black text-red-500/50 uppercase tracking-[0.2em] hover:text-red-500 transition-colors"
+                                    >
+                                        Withdraw Submission
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
                     <Link href="/" className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] hover:text-white transition-colors">

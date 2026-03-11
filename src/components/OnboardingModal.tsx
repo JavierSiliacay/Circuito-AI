@@ -108,12 +108,22 @@ export default function OnboardingModal({ isUpgrade, onClose }: OnboardingModalP
                 >
                     <div className="p-8 space-y-6">
                         <div className="space-y-4">
-                            <div className="flex items-center justify-center gap-4">
+                            <div className="flex items-center justify-between">
                                 <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
-                                    Welcome to Circuito AI
+                                    {isUpgrade ? 'Request Upgrade' : 'Welcome to Circuito AI'}
                                 </h2>
-                                <div className="w-10 h-10 rounded-xl bg-cyan-primary/10 flex items-center justify-center border border-cyan-primary/20 shadow-[0_0_20px_rgba(34,211,238,0.1)]">
-                                    <img src="/brand/master-logo.png" className="w-7 h-7 object-contain mix-blend-screen" alt="Logo" />
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-cyan-primary/10 flex items-center justify-center border border-cyan-primary/20 shadow-[0_0_20px_rgba(34,211,238,0.1)]">
+                                        <img src="/brand/master-logo.png" className="w-7 h-7 object-contain mix-blend-screen" alt="Logo" />
+                                    </div>
+                                    {onClose && (
+                                        <button
+                                            onClick={onClose}
+                                            className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                                        >
+                                            <X className="w-4 h-4 text-white" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                             <p className="text-sm text-text-muted text-center">

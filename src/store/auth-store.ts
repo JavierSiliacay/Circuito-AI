@@ -8,7 +8,7 @@ interface Profile {
     full_name: string;
     avatar_url: string;
     category: 'student' | 'enthusiast' | 'mechanic' | null;
-    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | null;
+    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | 'cancelled' | null;
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
