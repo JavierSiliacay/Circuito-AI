@@ -29,11 +29,13 @@ interface Profile {
     email: string;
     full_name: string;
     avatar_url: string;
-    category: 'student' | 'enthusiast' | 'mechanic';
-    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted';
+    category: 'student' | 'enthusiast' | 'mechanic' | null;
+    verification_status: 'pending' | 'verified' | 'rejected' | 'banned' | 'deleted' | null;
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
+    pending_category: 'student' | 'enthusiast' | 'mechanic' | null;
+    pending_document_url: string | null;
     warning_message: string | null;
     internal_notes: string | null;
     created_at: string;
@@ -82,24 +84,30 @@ export default function AdminPage() {
     };
 
     const handleApprove = async (profile: Profile) => {
-        // Default Logic based on category
+        const targetCategory = profile.pending_category || profile.category;
+
         const updates: Partial<Profile> = {
             verification_status: 'verified',
-            has_ai_access: profile.category === 'student',
-            has_diag_access: profile.category === 'mechanic' || profile.category === 'enthusiast'
+            category: targetCategory as any,
+            document_url: profile.pending_document_url || profile.document_url,
+            pending_category: null,
+            pending_document_url: null,
+            has_ai_access: profile.has_ai_access || targetCategory === 'student',
+            has_diag_access: profile.has_diag_access || targetCategory === 'mechanic' || targetCategory === 'enthusiast'
         };
 
-        // If it's the "Both" document case, admin might manually adjust
         handleUpdateAccess(profile.id, updates);
     };
 
     const handleReject = async (profileId: string) => {
         const reason = window.prompt('Optional: Enter rejection reason (shows to user):', 'Your request has been rejected because you did not comply with the specific requirements or you are not qualified.');
         if (reason !== null) {
+            // If it was an upgrade, we just want to clear the pending request
+            // But if it was a new user, they stay as 'rejected'
             handleUpdateAccess(profileId, {
                 verification_status: 'rejected',
-                has_ai_access: false,
-                has_diag_access: false,
+                pending_category: null,
+                pending_document_url: null,
                 warning_message: reason
             });
         }
@@ -215,22 +223,34 @@ export default function AdminPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-1 w-full md:w-40">
-                                    <p className="text-[9px] font-black text-text-muted uppercase tracking-widest">Category</p>
-                                    <p className={`text-xs font-bold uppercase tracking-tight ${profile.category === 'student' ? 'text-cyan-primary' : 'text-purple-ai'}`}>
-                                        {profile.category}
+                                <div className="flex flex-col gap-1 w-full md:w-48">
+                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">
+                                        {profile.pending_category ? 'Neural Upgrade Request' : 'Standard Category'}
                                     </p>
+                                    <div className="flex items-center gap-2">
+                                        {profile.pending_category ? (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-text-muted line-through opacity-50 uppercase font-bold">{profile.category}</span>
+                                                <span className="text-white/20">➔</span>
+                                                <span className="text-xs font-black text-cyan-primary uppercase tracking-tight">{profile.pending_category}</span>
+                                            </div>
+                                        ) : (
+                                            <span className={`text-xs font-bold uppercase tracking-tight ${profile.category === 'student' ? 'text-cyan-primary' : 'text-purple-ai'}`}>
+                                                {profile.category}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
                                     <p className="text-[9px] font-black text-text-muted uppercase tracking-widest">Supporting Document</p>
                                     <a
-                                        href={profile.document_url || '#'}
+                                        href={profile.pending_document_url || profile.document_url || '#'}
                                         target="_blank"
-                                        className="flex items-center gap-2 text-xs font-bold text-white hover:text-cyan-primary transition-colors bg-white/5 p-2 rounded-xl group"
+                                        className={`flex items-center gap-2 text-xs font-bold text-white hover:text-cyan-primary transition-colors p-2 rounded-xl group ${profile.pending_document_url ? 'bg-cyan-primary/10 border border-cyan-primary/20' : 'bg-white/5'}`}
                                     >
                                         <FileText className="w-4 h-4 text-text-muted group-hover:text-cyan-primary" />
-                                        View Attachment
+                                        {profile.pending_document_url ? 'Analyze Upgrade Documents' : 'View Attachment'}
                                         <ExternalLink className="w-3 h-3 ml-auto opacity-30" />
                                     </a>
                                 </div>

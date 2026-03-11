@@ -1215,24 +1215,11 @@ export default function Home() {
                 <button
                   onClick={async () => {
                     if (profile?.verification_status === 'pending') return;
-
-                    // Reset status to trigger onboarding modal
-                    const { error } = await supabase
-                      .from('profiles')
-                      .update({
-                        verification_status: null,
-                        category: null,
-                        document_url: null
-                      })
-                      .eq('id', user.id);
-
-                    if (!error) {
-                      await useAuthStore.getState().checkAuth();
-                    }
+                    useAuthStore.getState().setUpgradeModal(true);
                   }}
                   className="w-full py-3 rounded-2xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[10px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all shadow-lg shadow-cyan-primary/5 disabled:opacity-50"
                 >
-                  {profile?.verification_status === 'pending' ? 'Verification in Progress...' : 'Submit Documents'}
+                  {profile?.verification_status === 'pending' ? 'Verification in Progress...' : 'Apply for AI Agent Access'}
                 </button>
               </div>
               <Link href="/diagnostic" className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] hover:text-white transition-colors">

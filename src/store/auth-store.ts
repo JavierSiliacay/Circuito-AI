@@ -12,6 +12,8 @@ interface Profile {
     has_ai_access: boolean;
     has_diag_access: boolean;
     document_url: string | null;
+    pending_category: 'student' | 'enthusiast' | 'mechanic' | null;
+    pending_document_url: string | null;
     warning_message: string | null;
 }
 
@@ -20,9 +22,11 @@ interface AuthState {
     profile: Profile | null;
     isLoading: boolean;
     isAdmin: boolean;
+    isUpgradeModalOpen: boolean;
     checkAuth: () => Promise<void>;
     signOut: () => Promise<void>;
     clearWarning: () => Promise<void>;
+    setUpgradeModal: (isOpen: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -30,6 +34,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     profile: null,
     isLoading: true,
     isAdmin: false,
+    isUpgradeModalOpen: false,
+
+    setUpgradeModal: (isOpen) => set({ isUpgradeModalOpen: isOpen }),
 
     checkAuth: async () => {
         set({ isLoading: true });

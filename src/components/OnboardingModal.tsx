@@ -11,7 +11,12 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
 import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
-export default function OnboardingModal() {
+interface OnboardingModalProps {
+    isUpgrade?: boolean;
+    onClose?: () => void;
+}
+
+export default function OnboardingModal({ isUpgrade, onClose }: OnboardingModalProps) {
     const { user, profile, checkAuth, isAdmin, isLoading } = useAuthStore();
     const [category, setCategory] = useState<'student' | 'enthusiast' | 'mechanic' | null>(null);
     const [file, setFile] = useState<File | null>(null);
@@ -25,26 +30,14 @@ export default function OnboardingModal() {
     // 1. Loading state - Don't show while fetching profile
     if (isLoading) return null;
 
-    // 2. Only show if user is logged in, NOT an admin, and profile hasn't been completed
-    // profile.category === null means they haven't picked a role yet
-    // profile.verification_status === null means they haven't submitted documents yet
-    const needsOnboarding = user && !isAdmin && (profile?.category === null || profile?.category === undefined);
-
-    if (process.env.NODE_ENV === 'development') {
-        console.log('[Onboarding] State:', {
-            hasUser: !!user,
-            isAdmin,
-            category: profile?.category,
-            status: profile?.verification_status,
-            needsOnboarding
-        });
-    }
+    // 2. Logic: Show if upgrading OR if new user needs profile
+    const needsOnboarding = isUpgrade || (user && !isAdmin && (profile?.category === null || profile?.category === undefined));
 
     if (!needsOnboarding) return null;
 
     const handleUpload = async () => {
-        if (!category || !file) {
-            setError('Please select a category and upload a document.');
+        if (!user || !category || !file) {
+            setError(!user ? 'Session expired. Please log in again.' : 'Please select a category and upload a document.');
             return;
         }
 
@@ -54,10 +47,10 @@ export default function OnboardingModal() {
         try {
             // 1. Upload file to Supabase Storage
             const fileExt = file.name.split('.').pop();
-            const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+            const fileName = `${user.id}-${isUpgrade ? 'upgrade' : 'new'}-${Math.random()}.${fileExt}`;
             const filePath = `verifications/${fileName}`;
 
-            const { error: uploadError, data } = await supabase.storage
+            const { error: uploadError } = await supabase.storage
                 .from('verification-docs')
                 .upload(filePath, file);
 
@@ -68,21 +61,28 @@ export default function OnboardingModal() {
                 .from('verification-docs')
                 .getPublicUrl(filePath);
 
-            // 3. Update Profile
+            // 3. Update Profile - Handle Upgrade vs New
+            const updates = isUpgrade ? {
+                pending_category: category,
+                pending_document_url: publicUrl,
+                verification_status: 'pending'
+            } : {
+                category,
+                document_url: publicUrl,
+                verification_status: 'pending'
+            };
+
             const { error: updateError } = await supabase
                 .from('profiles')
-                .update({
-                    category,
-                    document_url: publicUrl,
-                    verification_status: 'pending'
-                })
+                .update(updates)
                 .eq('id', user.id);
 
             if (updateError) throw updateError;
 
             setSuccess(true);
             setTimeout(async () => {
-                await checkAuth(); // Refetch profile to close modal
+                await checkAuth();
+                if (onClose) onClose();
             }, 2000);
 
         } catch (err: any) {
@@ -134,6 +134,7 @@ export default function OnboardingModal() {
                                 </div>
                                 <button
                                     onClick={async () => {
+                                        if (!user) return;
                                         // Reset verification status in DB to allow re-submission
                                         await supabase
                                             .from('profiles')

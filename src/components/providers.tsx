@@ -9,7 +9,7 @@ import AuthOverlay from '@/components/AuthOverlay';
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient());
-    const { checkAuth } = useAuthStore();
+    const { checkAuth, isUpgradeModalOpen, setUpgradeModal } = useAuthStore();
 
     useEffect(() => {
         checkAuth();
@@ -19,7 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
             <TooltipProvider delayDuration={200}>
                 <AuthOverlay />
-                <OnboardingModal />
+                <OnboardingModal
+                    isUpgrade={isUpgradeModalOpen}
+                    onClose={() => setUpgradeModal(false)}
+                />
                 {children}
             </TooltipProvider>
         </QueryClientProvider>

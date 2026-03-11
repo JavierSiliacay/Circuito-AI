@@ -255,21 +255,7 @@ export default function DiagnosticPage() {
                             <button
                                 onClick={async () => {
                                     if (profile?.verification_status === 'pending') return;
-
-                                    // Reset status to allow re-submission/category change
-                                    const { error } = await supabase
-                                        .from('profiles')
-                                        .update({
-                                            verification_status: null,
-                                            category: null,
-                                            document_url: null
-                                        })
-                                        .eq('id', user.id);
-
-                                    if (!error) {
-                                        await useAuthStore.getState().checkAuth();
-                                        window.location.href = '/';
-                                    }
+                                    useAuthStore.getState().setUpgradeModal(true);
                                 }}
                                 className="w-full py-3 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[10px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all shadow-[0_0_15px_rgba(34,211,238,0.05)]"
                             >

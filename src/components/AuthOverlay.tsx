@@ -29,10 +29,12 @@ export default function AuthOverlay() {
         const { verification_status, warning_message } = profile;
 
         // BANNED or DELETED (Hard Lock)
-        if (verification_status === 'banned' || verification_status === 'deleted' || verification_status === 'rejected') {
-            const isBan = verification_status === 'banned';
-            const isDelete = verification_status === 'deleted';
-            const isReject = verification_status === 'rejected';
+        // REJECTED (Only Lock if they have no existing category - i.e. new user rejected)
+        const isBan = verification_status === 'banned';
+        const isDelete = verification_status === 'deleted';
+        const isReject = verification_status === 'rejected' && (!profile.category);
+
+        if (isBan || isDelete || isReject) {
             return (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0A0F1C] p-4">
                     <div className={`absolute inset-0 ${isBan ? 'bg-red-500/5' : 'bg-white/5'} blur-[120px] pointer-events-none`} />
