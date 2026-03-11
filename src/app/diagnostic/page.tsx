@@ -236,7 +236,7 @@ export default function DiagnosticPage() {
                 <div className="space-y-3 max-w-md">
                     <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Access Denied</h1>
                     <p className="text-text-muted leading-relaxed">
-                        The Diagnostic Station is a restricted zone. To access professional vehicle telemetry and AI-assisted troubleshooting, you must first complete your verification.
+                        The Diagnostic Station is a restricted zone. To access professional vehicle telemetry and AI-assisted troubleshooting, you must request an access upgrade and provide proof that you are a mechanic, automotive enthusiast, or automotive student.
                     </p>
                 </div>
                 <div className="flex flex-col gap-3 w-full max-w-xs">
