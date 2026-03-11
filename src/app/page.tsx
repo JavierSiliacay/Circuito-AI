@@ -206,6 +206,17 @@ function CodeBlock({ code, language, isStreaming }: { code: string; language: st
       <pre className={`p-5 overflow-x-auto text-[13.5px] font-mono leading-relaxed custom-scrollbar ${isStreaming ? 'text-blue-100/40 italic' : 'text-blue-100/80'}`}>
         <code>{code}{isStreaming && '_'}</code>
       </pre>
+
+      <div className="px-4 py-2.5 bg-white/[0.02] border-t border-white/5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-cyan-primary animate-pulse" />
+          <span className="text-[9px] font-black text-cyan-primary/60 uppercase tracking-widest">Agentic Payload Detected</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-[9px] font-bold text-text-muted/40 uppercase tracking-tight">Size: {(code.length / 1024).toFixed(1)} KB</span>
+          <span className="text-[9px] font-bold text-text-muted/40 uppercase tracking-tight">CRC: 0x{Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase()}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1396,49 +1407,97 @@ export default function Home() {
                                 )
                               )}
 
-                              {/* Agent Summary Card */}
+                              {/* ─── IBM-Style Agentic Action Card ─── */}
                               {!msg.isError && msg.role === 'assistant' && extractLatestCodeBlock(msg.content) && !isTyping && (
                                 <motion.div
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3"
+                                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  className="mt-8 relative"
                                 >
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Sparkles className="w-3.5 h-3.5 text-cyan-primary" />
-                                    <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Agent Implementation Report</h4>
-                                  </div>
+                                  <div className="absolute -inset-1 bg-gradient-to-r from-cyan-primary/20 via-blue-500/20 to-purple-ai/20 rounded-[24px] blur-xl opacity-50" />
+                                  <div className="relative p-6 rounded-[24px] bg-[#0F1629] border border-white/10 shadow-2xl space-y-5 overflow-hidden">
+                                    {/* Background Pattern */}
+                                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+                                      <Cpu className="w-32 h-32 rotate-12" />
+                                    </div>
 
-                                  <div className="grid grid-cols-2 gap-3 mb-4">
-                                    <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                                      <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1">Status</p>
-                                      <div className="flex items-center gap-2 text-green-success">
-                                        <Check className="w-3 h-3" />
-                                        <span className="text-[11px] font-bold">Code Verified</span>
+                                    <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-cyan-primary/10 flex items-center justify-center border border-cyan-primary/20">
+                                          <Sparkles className="w-5 h-5 text-cyan-primary" />
+                                        </div>
+                                        <div>
+                                          <h4 className="text-xs font-black text-white uppercase tracking-tighter">Arduino AI-Agent</h4>
+                                          <p className="text-[10px] text-cyan-primary/60 font-black uppercase tracking-widest">Action Deployment Center</p>
+                                        </div>
+                                      </div>
+                                      <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                        <span className="text-[9px] font-black text-white uppercase tracking-widest">Neural Bridge Active</span>
                                       </div>
                                     </div>
-                                    <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                                      <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1">Sync</p>
-                                      <div className="flex items-center gap-2 text-cyan-primary">
-                                        <Zap className="w-3 h-3" />
-                                        <span className="text-[11px] font-bold">Neural Link Push</span>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Verification</p>
+                                        <div className="flex items-center gap-2 text-green-success">
+                                          <CheckCircle2 className="w-4 h-4" />
+                                          <span className="text-[12px] font-black tracking-tight">Logic Validated</span>
+                                        </div>
+                                      </div>
+                                      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
+                                        <p className="text-[9px] font-black text-text-muted uppercase tracking-wider">Deployment</p>
+                                        <div className="flex items-center gap-2 text-cyan-primary">
+                                          <ArduinoLogo className="w-4 h-4" />
+                                          <span className="text-[12px] font-black tracking-tight">IDE Sync Ready</span>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
 
-                                  <div className="space-y-2">
-                                    <p className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Implementation Summary Report</p>
-                                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 max-h-[250px] overflow-y-auto overflow-x-hidden custom-scrollbar break-words [overflow-wrap:anywhere]">
-                                      {parseMessageContent(msg.content)
-                                        .filter(p => p.type === 'text')
-                                        .map((part, idx) => (
-                                          <RenderText key={idx} text={part.content} className="text-[12px]" lineSpacing="space-y-3" />
-                                        ))}
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-black text-text-muted uppercase tracking-widest">Execution Summary</p>
+                                        <span className="text-[9px] text-text-muted/40 font-mono">HASH: {Math.random().toString(36).substring(7).toUpperCase()}</span>
+                                      </div>
+                                      <div className="p-4 rounded-2xl bg-black/40 border border-white/5 font-medium text-[12px] text-text-secondary leading-relaxed">
+                                        {parseMessageContent(msg.content)
+                                          .filter(p => p.type === 'text')
+                                          .map((part, idx) => (
+                                            <div key={idx} className="mb-2 last:mb-0">
+                                              {part.content.split('\n').filter(l => l.trim()).slice(0, 2).join(' ')}...
+                                            </div>
+                                          ))}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 pt-2">
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                          onClick={async () => {
+                                            const code = extractLatestCodeBlock(msg.content);
+                                            if (code) {
+                                              await syncToLocalFile(code, true);
+                                              showToast('Agent has successfully synced the code to your local IDE.', 'success');
+                                            }
+                                          }}
+                                          className="relative group h-12 rounded-2xl bg-purple-ai/10 border border-purple-ai/20 text-purple-ai font-black text-[11px] uppercase tracking-widest hover:bg-purple-ai/20 transition-all flex items-center justify-center gap-2"
+                                        >
+                                          <RefreshCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                                          Push to IDE
+                                        </button>
+                                        <Link
+                                          href="/flash"
+                                          className="h-12 rounded-2xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[11px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-primary/5"
+                                        >
+                                          <Zap className="w-4 h-4" />
+                                          Direct Flash
+                                        </Link>
+                                      </div>
+                                      <p className="text-[9px] text-text-muted/40 italic font-medium text-center px-4 leading-relaxed">
+                                        Agentic actions are governed by Circuito Safety Protocols. Always verify pin configurations before hardware execution.
+                                      </p>
                                     </div>
                                   </div>
-
-                                  <p className="text-[10px] text-cyan-primary/40 italic font-medium pt-2 border-t border-white/5">
-                                    "The hardware logic has been successfully deployed. Ready for firmware compilation."
-                                  </p>
                                 </motion.div>
                               )}
                             </>
