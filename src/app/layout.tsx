@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import MaintenanceMode from "@/components/maintenance-mode";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -55,6 +56,7 @@ export default function RootLayout({
         <Providers>
           <MaintenanceMode>
             {children}
+            <ChatWidget />
           </MaintenanceMode>
         </Providers>
       </body>
