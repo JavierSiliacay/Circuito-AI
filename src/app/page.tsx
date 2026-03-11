@@ -1202,7 +1202,7 @@ export default function Home() {
               <div className="space-y-3 max-w-sm">
                 <h1 className="text-2xl font-black text-white uppercase tracking-tighter">AI Access Restricted</h1>
                 <p className="text-sm text-text-muted leading-relaxed">
-                  Circuito AI-Agent is specialized for hardware development and architecture queries. To access this feature, you must provide your <strong>Certificate of Registration (COR)</strong> and wait for admin approval.
+                  Circuito AI-Agent is specialized for hardware development and architecture queries. To access this feature, you must provide your <strong>USTP-COT Certificate of Registration (COR)</strong> and wait for admin approval.
                 </p>
               </div>
               <div className="p-4 rounded-3xl bg-white/5 border border-white/10 w-full max-w-xs space-y-4">
