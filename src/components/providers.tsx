@@ -4,8 +4,10 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth-store';
-import OnboardingModal from '@/components/OnboardingModal';
-import AuthOverlay from '@/components/AuthOverlay';
+import dynamic from 'next/dynamic';
+
+const AuthOverlay = dynamic(() => import('@/components/AuthOverlay'), { ssr: false });
+const OnboardingModal = dynamic(() => import('@/components/OnboardingModal'), { ssr: false });
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient());
