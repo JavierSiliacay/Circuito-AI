@@ -24,7 +24,6 @@ import {
     MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AdminChatManager } from '@/components/chat/AdminChatManager';
 
 interface Profile {
     id: string;
@@ -265,20 +264,6 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* User Communications Section */}
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                        <MessageSquare className="w-6 h-6 text-cyan-primary" />
-                        User Communications
-                    </h2>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-primary/10 border border-cyan-primary/20">
-                        <HeartPulse className="w-3 h-3 text-cyan-primary animate-pulse" />
-                        <span className="text-[9px] font-black text-cyan-primary uppercase tracking-widest">Live Monitoring Active</span>
-                    </div>
-                </div>
-                <AdminChatManager />
-            </div>
 
             {/* User Permissions Management */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -442,25 +427,6 @@ export default function AdminPage() {
                         <p className="text-sm font-bold uppercase tracking-widest">No users found matching "{searchTerm}"</p>
                     </div>
                 )}
-            </div>
-
-            {/* User Communications Panel */}
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                        <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                            <MessageSquare className="w-6 h-6 text-cyan-primary animate-pulse" />
-                            Live User Support
-                        </h2>
-                        <p className="text-xs text-text-muted font-bold uppercase tracking-widest">Operator Command Center / Real-time Diagnostics</p>
-                    </div>
-                    <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-white/5 border border-white/5">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Presence Active</span>
-                    </div>
-                </div>
-
-                <AdminChatManager />
             </div>
 
             {/* Notes Modal */}
