@@ -23,10 +23,11 @@ interface AuthState {
     isLoading: boolean;
     isAdmin: boolean;
     isUpgradeModalOpen: boolean;
+    targetCategory: 'student' | 'enthusiast' | 'mechanic' | null;
     checkAuth: () => Promise<void>;
     signOut: () => Promise<void>;
     clearWarning: () => Promise<void>;
-    setUpgradeModal: (isOpen: boolean) => void;
+    setUpgradeModal: (isOpen: boolean, target?: 'student' | 'enthusiast' | 'mechanic' | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -35,8 +36,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isLoading: true,
     isAdmin: false,
     isUpgradeModalOpen: false,
+    targetCategory: null,
 
-    setUpgradeModal: (isOpen) => set({ isUpgradeModalOpen: isOpen }),
+    setUpgradeModal: (isOpen, target = null) => set({ isUpgradeModalOpen: isOpen, targetCategory: target }),
 
     checkAuth: async () => {
         set({ isLoading: true });

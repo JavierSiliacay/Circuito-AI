@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Upload, Check, GraduationCap,
     Wrench, Car, Loader2, FileText,
-    AlertCircle
+    AlertCircle, ShieldCheck, Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth-store';
@@ -17,12 +17,21 @@ interface OnboardingModalProps {
 }
 
 export default function OnboardingModal({ isUpgrade, onClose }: OnboardingModalProps) {
-    const { user, profile, checkAuth, isAdmin, isLoading } = useAuthStore();
+    const { user, profile, checkAuth, isAdmin, isLoading, targetCategory } = useAuthStore();
     const [category, setCategory] = useState<'student' | 'enthusiast' | 'mechanic' | null>(null);
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    // Auto-set category if target is provided
+    useEffect(() => {
+        if (targetCategory) {
+            setCategory(targetCategory);
+        } else {
+            setCategory(null);
+        }
+    }, [targetCategory, isUpgrade]);
 
     // 0. TEMPORARY BYPASS (Vercel/Auth Outage)
     if (MAINTENANCE_CONFIG.isAuthBypassEnabled) return null;
@@ -169,33 +178,57 @@ export default function OnboardingModal({ isUpgrade, onClose }: OnboardingModalP
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                {/* Category Selection */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] ml-2">Select your category</label>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        {[
-                                            { id: 'student', label: 'USTP-COT Student', icon: GraduationCap, desc: 'Requires Certificate of Registration (COR)' },
-                                            { id: 'enthusiast', label: 'Automotive Enthusiast', icon: Car, desc: 'Requires proof of automotive background' },
-                                            { id: 'mechanic', label: 'Professional Mechanic', icon: Wrench, desc: 'Requires license or workshop ID' }
-                                        ].map((cat) => (
-                                            <button
-                                                key={cat.id}
-                                                onClick={() => setCategory(cat.id as any)}
-                                                className={`flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${category === cat.id
-                                                    ? 'bg-cyan-primary/10 border-cyan-primary text-white shadow-[0_0_20px_rgba(34,211,238,0.1)]'
-                                                    : 'bg-white/5 border-white/5 text-text-muted hover:border-white/20'}`}
-                                            >
-                                                <div className={`p-2 rounded-xl ${category === cat.id ? 'bg-cyan-primary text-black' : 'bg-white/5 text-white'}`}>
-                                                    <cat.icon className="w-5 h-5" />
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <p className="font-bold text-sm uppercase tracking-tight">{cat.label}</p>
-                                                    <p className="text-[10px] opacity-60 leading-tight">{cat.desc}</p>
-                                                </div>
-                                            </button>
-                                        ))}
+                                {isUpgrade ? (
+                                    <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-black text-white/40 uppercase tracking-widest">Active Registered Role</p>
+                                                <p className="text-sm font-black text-white uppercase tracking-tight">{profile?.category}</p>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
+                                                <ShieldCheck className="w-4 h-4" />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2">
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-black text-cyan-primary/40 uppercase tracking-widest">Requested Upgrade Access</p>
+                                                <p className="text-sm font-black text-cyan-primary uppercase tracking-tight">
+                                                    {category === 'student' ? 'AI Agent Access' : 'Pro Diagnostic Access'}
+                                                </p>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-cyan-primary/10 text-cyan-primary">
+                                                <Sparkles className="w-4 h-4" />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] ml-2">Select your category</label>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {[
+                                                { id: 'student', label: 'USTP-COT Student', icon: GraduationCap, desc: 'Requires Certificate of Registration (COR)' },
+                                                { id: 'enthusiast', label: 'Automotive Enthusiast', icon: Car, desc: 'Requires proof of automotive background' },
+                                                { id: 'mechanic', label: 'Professional Mechanic', icon: Wrench, desc: 'Requires license or workshop ID' }
+                                            ].map((cat) => (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => setCategory(cat.id as any)}
+                                                    className={`flex items-start gap-4 p-4 rounded-2xl border transition-all text-left ${category === cat.id
+                                                        ? 'bg-cyan-primary/10 border-cyan-primary text-white shadow-[0_0_20px_rgba(34,211,238,0.1)]'
+                                                        : 'bg-white/5 border-white/5 text-text-muted hover:border-white/20'}`}
+                                                >
+                                                    <div className={`p-2 rounded-xl ${category === cat.id ? 'bg-cyan-primary text-black' : 'bg-white/5 text-white'}`}>
+                                                        <cat.icon className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <p className="font-bold text-sm uppercase tracking-tight">{cat.label}</p>
+                                                        <p className="text-[10px] opacity-60 leading-tight">{cat.desc}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* File Upload */}
                                 <div className="space-y-3">
