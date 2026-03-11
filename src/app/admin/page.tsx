@@ -317,8 +317,20 @@ export default function AdminPage() {
                         {filteredProfiles.filter(p => p.verification_status !== 'pending').map((profile) => (
                             <tr key={profile.id} className="group hover:bg-white/[0.02] transition-colors">
                                 <td className="p-5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="text-right">
+                                    <div className="flex items-center gap-4">
+                                        {profile.avatar_url ? (
+                                            <img
+                                                src={profile.avatar_url}
+                                                className="w-10 h-10 rounded-full border border-white/10 object-cover shadow-lg"
+                                                alt="User"
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-text-muted">
+                                                <User className="w-5 h-5 opacity-40" />
+                                            </div>
+                                        )}
+                                        <div>
                                             <p className="text-xs font-bold text-white leading-none">{profile.full_name}</p>
                                             <p className="text-[10px] text-text-muted mt-1">{profile.email}</p>
                                         </div>
