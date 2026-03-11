@@ -19,12 +19,16 @@ export function ChatWidget() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [isMounted, setIsMounted] = useState(false);
     const { user, isAdmin } = useAuthStore();
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Don't show for admins (they have their own dashboard chat)
-    if (isAdmin) return null;
-    if (!user) return null;
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Don't show for admins or if not mounted or no user
+    if (!isMounted || isAdmin || !user) return null;
 
     useEffect(() => {
         if (!isOpen) return;
@@ -147,7 +151,7 @@ export function ChatWidget() {
                                         ? 'bg-cyan-primary text-black font-medium rounded-tr-none'
                                         : msg.is_ai_response
                                             ? 'bg-purple-ai/20 border border-purple-ai/30 text-white rounded-tl-none'
-                                            : 'bg-white/1 accounts-list-item text-white border border-white/10 rounded-tl-none'
+                                            : 'bg-white/5 text-white border border-white/10 rounded-tl-none'
                                         }`}>
                                         {msg.is_ai_response && (
                                             <div className="flex items-center gap-1.5 mb-2 opacity-60">

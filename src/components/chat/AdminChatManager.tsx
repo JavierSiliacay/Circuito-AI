@@ -55,7 +55,7 @@ export function AdminChatManager() {
 
             // We need to fetch profiles to get names/emails
             const { data: profiles } = await supabase.from('profiles').select('id, email, full_name');
-            const profileMap = Object.fromEntries(profiles?.map(p => [p.id, p]) || []);
+            const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
 
             messages.forEach(msg => {
                 if (!userChats[msg.user_id]) {
@@ -270,10 +270,10 @@ export function AdminChatManager() {
                                 >
                                     <div className={`max-w-[70%] space-y-2 ${msg.sender_id === selectedUserId ? 'items-start' : 'items-end'}`}>
                                         <div className={`p-4 rounded-[24px] text-sm leading-relaxed ${msg.sender_id === selectedUserId
-                                                ? 'bg-white/5 text-white border border-white/10 rounded-tl-none'
-                                                : msg.is_ai_response
-                                                    ? 'bg-purple-ai/20 border border-purple-ai/30 text-white rounded-tr-none'
-                                                    : 'bg-cyan-primary text-black font-medium rounded-tr-none shadow-lg shadow-cyan-primary/10'
+                                            ? 'bg-white/5 text-white border border-white/10 rounded-tl-none'
+                                            : msg.is_ai_response
+                                                ? 'bg-purple-ai/20 border border-purple-ai/30 text-white rounded-tr-none'
+                                                : 'bg-cyan-primary text-black font-medium rounded-tr-none shadow-lg shadow-cyan-primary/10'
                                             }`}>
                                             {msg.is_ai_response && (
                                                 <div className="flex items-center gap-1.5 mb-2 opacity-60">
