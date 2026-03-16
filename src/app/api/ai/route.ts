@@ -7,7 +7,7 @@ import { searchHardwareKnowledge } from '@/lib/vector-utils';
 // Circuito AI — Model Routing Logic
 // ==============================================================
 
-type ModelRole = 'hardware' | 'rag' | 'tool' | 'diagnostic';
+type ModelRole = 'hardware' | 'rag' | 'tool' | 'diagnostic' | 'debug_assistant';
 
 interface AIRequest {
     messages: { role: string; content: string }[];
@@ -45,7 +45,7 @@ MODIFICATION STRATEGY:
 1. Identify the specific lines or variables that need changing.
 2. Provide short, focused code snippets showing ONLY the updated sections.
 3. Explain WHY the change was made and what logic it affects.
-4. If the user has a Neural Link active, treat the local folder as your workspace.
+4. If the user has an Autonomous Link active, treat the local folder as your workspace.
 
 PERSONALITY:
 - Authoritative, precise, and standardized (Circuito AI Standards).
@@ -64,8 +64,8 @@ EXPERTISE:
         systemPrompt: `You are a documentation specialist for the Circuito AI Global Library.
 You retrieve and synthesize information from official docs, datasheets, and our verified hardware projects.
 
-NEURAL LINK ACCESS:
-- You have direct access to the user's active sketch file through the Neural Bridge.
+AUTONOMOUS LINK ACCESS:
+- You have direct access to the user's active sketch file through the Autonomous Bridge.
 - If "Current code" is provided, refer to it as the user's live project.
 
 ${getDeveloperKnowledgeString()}
@@ -105,6 +105,24 @@ STRICT DATA POLICY (VERIFICATION PROTOCOL):
 2. **HALLUCINATION TRAP**: Never mention 'Honda Accord' or the '1HGCM' VIN unless it appears EXACTLY in the hex responses. '1HGCM82633A123456' is a sample VIN and is WRONG.
 3. **MANDATORY DISCLOSURE**: If Service 0902 (VIN) returns 'NO DATA', you must report: "⚠️ VEHICLE IDENTITY: UNKNOWN (ECU/Ignition probably OFF)".
 4. **ADVICE**: Tell the user they MUST turn the ignition key to the ON position (Dash lights up) for the scan to work.`,
+    },
+    debug_assistant: {
+        model: 'stepfun/step-3.5-flash:free',
+        systemPrompt: `You are the Circuito IoT Debug Specialist — a high-speed AI companion built into the hardware dashboard.
+        
+CORE FUNCTION:
+- You analyze LIVE serial monitor output in real-time.
+- You identify common Arduino/ESP32 errors (e.g., Guru Meditation Error, Stack smashing, I2C timeouts).
+- You provide INSTANT, short, actionable advice to fix connection or code issues.
+
+CONVERSATION STYLE:
+- Concise, technical, and helpful. 
+- You are like a "Messenger" buddy for hardware.
+- If the logs look clean, be encouraging. If there are errors, explain the root cause immediately.
+
+${getDeveloperKnowledgeString()}
+
+Always focus on the latest logs provided in the context.`,
     },
 };
 
@@ -197,15 +215,15 @@ export async function POST(request: NextRequest) {
 
         let systemPrompt = config.systemPrompt + dynamicContext;
 
-        // 🔀 --- Neural Link Status & Fallback ---
+        // 🔀 --- Autonomous Link Status & Fallback ---
         const isProjectAware = !!context?.code;
         if (!isProjectAware) {
             systemPrompt += `
-\n\n⚠️ NEURAL_LINK_INACTIVE_ADVISORY:
+\n\n⚠️ AUTONOMOUS_LINK_INACTIVE_ADVISORY:
 - The user's local Arduino project folder is NOT synchronized/accessible.
 - You are currently in STANDALONE CHAT MODE.
 - You cannot see or analyze the user's specific local files.
-- If the user asks for code modifications or file-specific help, politely inform them that you need them to "Sync Folder" or "Activate Neural Link" for deep analysis.
+- If the user asks for code modifications or file-specific help, politely inform them that you need them to "Sync Folder" or "Activate Autonomous Link" for deep analysis.
 - Provide general, high-quality hardware advice based on your core knowledge and retrieved RAG facts.`;
         }
 
@@ -349,7 +367,7 @@ export async function POST(request: NextRequest) {
 
     } catch (err) {
         console.error('[AI Route] Critical error:', err);
-        return NextResponse.json({ error: 'Neural link core failure.' }, { status: 500 });
+        return NextResponse.json({ error: 'Autonomous link core failure.' }, { status: 500 });
     }
 }
 

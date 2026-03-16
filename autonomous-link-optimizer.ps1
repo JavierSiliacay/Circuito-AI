@@ -1,4 +1,4 @@
-# Circuito AI - Neural Link Optimizer
+# Circuito AI - Autonomous Link Optimizer
 # Ensures the local environment is optimized for the Web File System Access API
 
 $ErrorActionPreference = "Stop"
@@ -10,7 +10,7 @@ $Logo = @"
  | |____| | | | (__| |_| | |  || | || (_) |   | | | |_| |_ 
   \_____|_|_|  \___|\__,_|_|  |_|_|\__\___/    \_| |_/\___/ 
                                                            
-   Neural Link Connectivity Optimizer (Windows ver)
+   Autonomous Link Connectivity Optimizer (Windows ver)
 "@
 
 Write-Host $Logo -ForegroundColor Cyan
@@ -44,7 +44,7 @@ foreach ($file in ($ArduinoFiles + $CppFiles)) {
 if ($LockedFiles.Count -gt 0) {
     Write-Host "[-] CONFLICT: The following files are currently locked by another application (e.g., Arduino IDE):" -ForegroundColor Red
     foreach ($f in $LockedFiles) { Write-Host "    -> $f" }
-    Write-Host "    Neural Link might fail with 'InvalidStateError' if files remain locked." -ForegroundColor Magenta
+    Write-Host "    Autonomous Link might fail with 'InvalidStateError' if files remain locked." -ForegroundColor Magenta
 }
 else {
     Write-Host "[+] OK: All project files are accessible. No active locks detected." -ForegroundColor Green
@@ -61,7 +61,7 @@ if ($FolderAttributes.IsReadOnly) {
 
 Write-Host "[+] SUCCESS: Environment Optimized!" -ForegroundColor Green
 Write-Host "`n======================================================="
-Write-Host "Neural Link is ready. Keep this folder open while coding."
+Write-Host "Autonomous Link is ready. Keep this folder open while coding."
 Write-Host "If the browser shows 'InvalidStateError', re-run this script."
 Write-Host "=======================================================`n"
 

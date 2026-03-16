@@ -46,7 +46,12 @@ export default function FlashPage() {
     const [flashLogs, setFlashLogs] = useState<FlashLog[]>([]);
     const [timeElapsed, setTimeElapsed] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [hasMounted, setHasMounted] = useState(false);
     const isSupported = isWebSerialSupported();
+
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
 
     useEffect(() => {
         const boards = getInstalledBoardsList();
@@ -224,7 +229,7 @@ export default function FlashPage() {
                             transition={{ duration: 0.4 }}
                         >
                             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
-                                Flash Firmware
+                                IoT Dashboard & Flash
                             </h1>
                             <p className="text-xs sm:text-sm text-text-secondary mb-6 sm:mb-8">
                                 Connect your board, select the target, and upload your compiled binary to flash.
@@ -232,7 +237,7 @@ export default function FlashPage() {
                         </motion.div>
 
                         {/* Browser support warning */}
-                        {!isSupported && (
+                        {hasMounted && !isSupported && (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}

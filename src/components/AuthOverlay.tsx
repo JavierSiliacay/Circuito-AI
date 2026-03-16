@@ -114,7 +114,7 @@ export default function AuthOverlay() {
                                 Circuito AI
                             </h2>
                             <p className="text-sm text-text-muted leading-relaxed max-w-sm mx-auto">
-                                Sign in to access Circuito AI's neural engine, specialized diagnostic tools, and cloud-synced hardware projects.
+                                Sign in to access Circuito AI's autonomous agent, specialized diagnostic tools, and cloud-synced hardware projects.
                             </p>
                         </div>
                     </div>

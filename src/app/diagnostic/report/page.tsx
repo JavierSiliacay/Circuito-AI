@@ -377,7 +377,7 @@ export default function ReportPage() {
                     <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center gap-4 text-center">
                         <div className="flex gap-12 items-center">
                             <div className="flex flex-col gap-1">
-                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Neural Analysis</span>
+                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em]">Autonomous Analysis</span>
                                 <span className="text-[10px] font-black text-slate-950">99.8% Reliability</span>
                             </div>
                             <CircuitoLogo className="w-6 h-6 opacity-20" glow={false} />

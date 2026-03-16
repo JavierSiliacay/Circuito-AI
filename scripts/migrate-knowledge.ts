@@ -1,10 +1,14 @@
 import * as dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+import path from 'path';
+
+// Force load env before other imports
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
 import { createClient } from '@supabase/supabase-js';
 import { LOCAL_PROJECTS } from '../src/lib/arduino-knowledge';
 import { generateEmbedding } from '../src/lib/vector-utils';
 
-// Initialize Supabase with Service Role Key for migration
+// Initialize Supabase after env is loaded
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

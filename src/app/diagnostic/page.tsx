@@ -345,7 +345,7 @@ export default function DiagnosticPage() {
 
                     <div className="h-8 w-[1px] bg-white/10 mx-2 hidden lg:block" />
 
-                    {/* Neural Link Status */}
+                    {/* Autonomous Link Status */}
                     <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 lg:gap-3 w-full lg:w-auto">
                         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${isBridgeConnected ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai' : 'bg-white/5 border-white/10 text-text-muted'}`}>
                             <Zap className={`w-3.5 h-3.5 ${isBridgeConnected ? 'animate-pulse' : 'opacity-30'}`} />
@@ -408,6 +408,14 @@ export default function DiagnosticPage() {
                                 Terminate
                             </button>
                         )}
+
+                        <Link
+                            href="/flash"
+                            className="hidden xl:flex h-10 px-4 rounded-xl bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-widest items-center gap-2 hover:border-cyan-primary/30 transition-all shadow-inner"
+                        >
+                            <Cpu className="w-4 h-4 text-cyan-primary" />
+                            IoT Dashboard
+                        </Link>
 
                         <button
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -870,96 +878,98 @@ export default function DiagnosticPage() {
                         )}
                     </AnimatePresence>
                 </main>
-            </div>
+            </div >
 
             {/* CONNECTION SELECTOR MODAL */}
             <AnimatePresence>
-                {isConnectModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setIsConnectModalOpen(false)}
-                            className="absolute inset-0 bg-black/80 backdrop-blur-md"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="bg-[#0A0F1C] border border-white/10 w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative z-10"
-                        >
-                            <div className="p-8">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div>
-                                        <h2 className="text-xl font-black text-white uppercase tracking-tight">Initialize Link</h2>
-                                        <p className="text-xs text-text-muted font-bold uppercase tracking-widest opacity-60">Select hardware interface</p>
+                {
+                    isConnectModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsConnectModalOpen(false)}
+                                className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                className="bg-[#0A0F1C] border border-white/10 w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative z-10"
+                            >
+                                <div className="p-8">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <div>
+                                            <h2 className="text-xl font-black text-white uppercase tracking-tight">Initialize Link</h2>
+                                            <p className="text-xs text-text-muted font-bold uppercase tracking-widest opacity-60">Select hardware interface</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsConnectModalOpen(false)}
+                                            className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all"
+                                        >
+                                            <X className="w-5 h-5 text-white/40" />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => setIsConnectModalOpen(false)}
-                                        className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all"
-                                    >
-                                        <X className="w-5 h-5 text-white/40" />
-                                    </button>
-                                </div>
 
-                                <div className="space-y-4">
-                                    <button
-                                        onClick={handleSerialConnect}
-                                        className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-cyan-primary/50 hover:bg-cyan-primary/5 transition-all text-left flex items-center gap-6"
-                                    >
-                                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/20 transition-colors">
-                                            <Usb className="w-6 h-6 text-white/40 group-hover:text-cyan-primary transition-colors" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-sm font-black text-white uppercase tracking-widest">Serial Link (USB)</h3>
-                                            <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Direct tether for high-speed firmware and stable debug stream.</p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        onClick={handleBluetoothConnect}
-                                        className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-purple-ai/50 hover:bg-purple-ai/5 transition-all text-left flex items-center gap-6"
-                                    >
-                                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-purple-ai/20 transition-colors">
-                                            <Bluetooth className="w-6 h-6 text-white/40 group-hover:text-purple-ai transition-colors" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-sm font-black text-white uppercase tracking-widest">Wireless Link (BLE)</h3>
-                                                <span className="px-1.5 py-0.5 rounded bg-purple-ai/20 text-purple-ai text-[8px] font-black uppercase tracking-tighter">Modern Adapters</span>
+                                    <div className="space-y-4">
+                                        <button
+                                            onClick={handleSerialConnect}
+                                            className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-cyan-primary/50 hover:bg-cyan-primary/5 transition-all text-left flex items-center gap-6"
+                                        >
+                                            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cyan-primary/20 transition-colors">
+                                                <Usb className="w-6 h-6 text-white/40 group-hover:text-cyan-primary transition-colors" />
                                             </div>
-                                            <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Best for newer BLE / Bluetooth 4.0+ adapters. Faster discovery and pairing.</p>
-                                        </div>
-                                    </button>
-                                </div>
+                                            <div>
+                                                <h3 className="text-sm font-black text-white uppercase tracking-widest">Serial Link (USB)</h3>
+                                                <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Direct tether for high-speed firmware and stable debug stream.</p>
+                                            </div>
+                                        </button>
 
-                                <div className="mt-6 p-4 rounded-2xl bg-cyan-primary/5 border border-cyan-primary/10">
-                                    <div className="flex gap-3">
-                                        <Info className="w-4 h-4 text-cyan-primary shrink-0 mt-0.5" />
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] text-cyan-primary/80 font-bold uppercase tracking-wider">Technician Tip: Legacy Bluetooth</p>
-                                            <p className="text-[10px] text-text-muted leading-relaxed">
-                                                If your ELM327 is an older model (Bluetooth 2.1/Classic), it won't show up in the Wireless Link list.
-                                                Instead, use the **Serial Link (USB)** and select the **Outgoing COM Port** assigned to your Bluetooth device in Windows Settings.
+                                        <button
+                                            onClick={handleBluetoothConnect}
+                                            className="w-full group p-6 rounded-[24px] bg-white/[0.03] border border-white/5 hover:border-purple-ai/50 hover:bg-purple-ai/5 transition-all text-left flex items-center gap-6"
+                                        >
+                                            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-purple-ai/20 transition-colors">
+                                                <Bluetooth className="w-6 h-6 text-white/40 group-hover:text-purple-ai transition-colors" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Wireless Link (BLE)</h3>
+                                                    <span className="px-1.5 py-0.5 rounded bg-purple-ai/20 text-purple-ai text-[8px] font-black uppercase tracking-tighter">Modern Adapters</span>
+                                                </div>
+                                                <p className="text-[11px] text-text-muted mt-1 leading-relaxed">Best for newer BLE / Bluetooth 4.0+ adapters. Faster discovery and pairing.</p>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-6 p-4 rounded-2xl bg-cyan-primary/5 border border-cyan-primary/10">
+                                        <div className="flex gap-3">
+                                            <Info className="w-4 h-4 text-cyan-primary shrink-0 mt-0.5" />
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] text-cyan-primary/80 font-bold uppercase tracking-wider">Technician Tip: Legacy Bluetooth</p>
+                                                <p className="text-[10px] text-text-muted leading-relaxed">
+                                                    If your ELM327 is an older model (Bluetooth 2.1/Classic), it won't show up in the Wireless Link list.
+                                                    Instead, use the **Serial Link (USB)** and select the **Outgoing COM Port** assigned to your Bluetooth device in Windows Settings.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                                        <div className="flex gap-3">
+                                            <Wifi className="w-4 h-4 text-cyan-primary/40 shrink-0" />
+                                            <p className="text-[10px] text-text-muted leading-relaxed italic">
+                                                Hardware Link uses Web Serial & Web Bluetooth APIs. Ensure your browser is up to date and you have granted necessary permissions.
                                             </p>
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                                    <div className="flex gap-3">
-                                        <Wifi className="w-4 h-4 text-cyan-primary/40 shrink-0" />
-                                        <p className="text-[10px] text-text-muted leading-relaxed italic">
-                                            Hardware Link uses Web Serial & Web Bluetooth APIs. Ensure your browser is up to date and you have granted necessary permissions.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-        </div>
+                            </motion.div>
+                        </div>
+                    )
+                }
+            </AnimatePresence >
+        </div >
     );
 }

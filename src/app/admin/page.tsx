@@ -225,7 +225,7 @@ export default function AdminPage() {
 
                                 <div className="flex flex-col gap-1 w-full md:w-48">
                                     <p className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-1">
-                                        {profile.pending_category ? 'Neural Upgrade Request' : 'Standard Category'}
+                                        {profile.pending_category ? 'Autonomous Upgrade Request' : 'Standard Category'}
                                     </p>
                                     <div className="flex items-center gap-2">
                                         {profile.pending_category ? (

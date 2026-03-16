@@ -42,6 +42,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { IoTAssistant } from "@/components/IoTAssistant";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -55,6 +57,7 @@ export default function RootLayout({
         <Providers>
           <MaintenanceMode>
             {children}
+            <IoTAssistant />
           </MaintenanceMode>
         </Providers>
       </body>

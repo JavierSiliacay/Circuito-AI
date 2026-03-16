@@ -87,4 +87,4 @@ const tsContent = '/**\n' +
     '};\n';
 
 fs.writeFileSync(OUTPUT_PATH, tsContent);
-console.log('✅ Neural link optimized with ' + projects.length + ' personal projects.');
+console.log('✅ Autonomous link optimized with ' + projects.length + ' personal projects.');

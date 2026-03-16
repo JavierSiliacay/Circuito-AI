@@ -29,6 +29,7 @@ import {
   Bell,
   CheckCircle2,
   X,
+  Target,
 } from 'lucide-react';
 import { useIDEStore } from '@/store/ide-store';
 import { CircuitoLogo } from '@/components/ui/logo';
@@ -38,6 +39,8 @@ import { supabase } from '@/lib/supabase';
 import BoardManager from '@/components/board-manager';
 import { BoardDefinition, getInstalledBoardsList } from '@/lib/board-manager';
 import Link from 'next/link';
+import { checkAutonomousLink, bridgeSetProject } from '@/lib/autonomous-link';
+import { runAutonomousAgent } from '@/app/actions/agent';
 
 // ─── Types ──────────────────────────────────────────────
 interface Message {
@@ -117,6 +120,16 @@ function RenderText({ text, className = "text-[14px]", lineSpacing = "space-y-2"
     <div className={`${lineSpacing} break-words overflow-x-hidden`}>
       {lines.map((line, i) => {
         if (!line.trim()) return <div key={i} className="h-2" />;
+        
+        // Header Support
+        if (line.startsWith('### ')) {
+          return (
+            <h3 key={i} className="text-[12px] font-black text-cyan-primary uppercase tracking-[0.2em] mt-6 mb-2 border-b border-cyan-primary/10 pb-1">
+              {line.replace('### ', '')}
+            </h3>
+          );
+        }
+
         return (
           <p key={i} className={`leading-relaxed ${className} text-text-secondary/90 whitespace-pre-wrap [overflow-wrap:anywhere]`}>
             {line.split(/(\*\*.*?\*\*|`[^`]+`|_\w+_)/).map((seg, j) => {
@@ -221,6 +234,115 @@ function CodeBlock({ code, language, isStreaming }: { code: string; language: st
   );
 }
 
+// ─── Live Agent Log Component ──────────────────────────
+function ThinkingTimer({ startTime, finalDuration }: { startTime: Date, finalDuration?: string }) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    if (finalDuration) return;
+    const interval = setInterval(() => {
+      setSeconds((Date.now() - new Date(startTime).getTime()) / 1000);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [startTime, finalDuration]);
+
+  return <span>{finalDuration || `${seconds.toFixed(1)}s`}</span>;
+}
+
+function AgentMissionLog({ logs }: { logs: any[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (scrollRef.current && !isMinimized) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [logs, isMinimized]);
+
+  if (logs.length === 0) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="w-full mb-6 rounded-2xl bg-[#161F36]/60 border border-purple-ai/20 backdrop-blur-sm shadow-xl overflow-hidden text-left transition-all duration-300"
+    >
+      <div 
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
+        onClick={() => setIsMinimized(!isMinimized)}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-purple-ai animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.6)]" />
+          <h3 className="text-[11px] font-black text-white uppercase tracking-wider">Mission Autonomous Log</h3>
+          {isMinimized && logs.length > 0 && (
+            <span className="text-[9px] text-purple-ai/60 font-bold ml-2 animate-pulse">
+              {logs[logs.length - 1].step}...
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[9px] font-mono text-purple-ai/50 uppercase font-black tracking-widest hidden sm:inline">Active Link</span>
+          <ChevronDown className={`w-4 h-4 text-white/40 transition-transform duration-300 ${isMinimized ? '' : 'rotate-180'}`} />
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {!isMinimized && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-4 pb-4"
+          >
+            <div className="border-t border-white/5 pt-3">
+              <div ref={scrollRef} className="space-y-2.5 max-h-[150px] overflow-y-auto custom-scrollbar pr-2">
+                {logs.map((log) => (
+          <motion.div
+            key={log.id}
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex gap-3 items-start group"
+          >
+            <div className="mt-1 shrink-0">
+              {log.type === 'reasoning' && <div className="w-3.5 h-3.5 rounded-full border border-cyan-primary/40 flex items-center justify-center"><div className="w-1 h-1 bg-cyan-primary animate-ping" /></div>}
+              {log.type === 'action' && <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />}
+              {log.type === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-green-success" />}
+              {log.type === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
+              {log.type === 'plan' && <Plus className="w-3.5 h-3.5 text-purple-ai" />}
+            </div>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[10px] font-black uppercase tracking-tight truncate ${log.type === 'error' ? 'text-red-400' :
+                  log.type === 'success' ? 'text-green-400' :
+                    log.type === 'plan' ? 'text-purple-400' :
+                      log.type === 'action' ? 'text-amber-400' : 'text-cyan-primary/80'
+                  }`}>
+                  {log.type === 'reasoning' ? (
+                    <>Thought for <ThinkingTimer startTime={log.timestamp} finalDuration={log.duration} /></>
+                  ) : log.step}
+                </span>
+                <span className="text-[8px] font-mono text-text-muted/20 shrink-0">
+                  {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+              {log.details && (
+                <p className="text-[10px] text-text-muted/80 leading-relaxed font-medium italic break-words">
+                  {log.details}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 import { MAINTENANCE_CONFIG } from '@/lib/maintenance-config';
 
 // ─── Main Page ──────────────────────────────────────────
@@ -233,9 +355,13 @@ export default function Home() {
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isAgentEnabled, setIsAgentEnabled] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // 🧠 Agent Approval State
+  const [pendingAgentData, setPendingAgentData] = useState<{ plan: string; messages: any[]; convoId: string } | null>(null);
   // Flash state
   const [connectedPort, setConnectedPort] = useState<any>(null);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -246,12 +372,40 @@ export default function Home() {
   const [selectedBoard, setSelectedBoard] = useState<BoardDefinition | null>(null);
 
   // Bridge state from global store
-  const { isBridgeConnected, localProjectPath, checkBridgeConnection, setLocalProjectPath, syncToLocalFile, agentTaskStatus, setAgentTaskStatus } = useIDEStore();
+  const {
+    isBridgeConnected,
+    localProjectPath,
+    checkBridgeConnection,
+    setLocalProjectPath,
+    syncToLocalFile,
+    agentTaskStatus,
+    setAgentTaskStatus,
+    agentLogs,
+    addAgentLog,
+    updateLastAgentLog,
+    clearAgentLogs,
+    autonomousLinkStatus,
+    setAutonomousLinkStatus
+  } = useIDEStore();
+
+  // Check Autonomous Link Status (Arcee Bridge)
+  useEffect(() => {
+    const checkStatus = async () => {
+      const status = await checkAutonomousLink();
+      setAutonomousLinkStatus(status);
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [setAutonomousLinkStatus]);
 
   const { clearWarning } = useAuthStore();
   const [isInboxOpen, setIsInboxOpen] = useState(false);
 
   const [isBridgeModalOpen, setIsBridgeModalOpen] = useState(false);
+  const [isActivatorModalOpen, setIsActivatorModalOpen] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [localPathInput, setLocalPathInput] = useState(localProjectPath);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -303,10 +457,22 @@ export default function Home() {
       useIDEStore.getState().setBridgeStatus('online');
       setLocalPathInput(`${dirHandle.name}/${targetFile}`);
 
+      // 🧠 Auto-Delegate Notification
+      if (autonomousLinkStatus.online) {
+        addAgentLog({
+          step: "Autonomous Link Synced",
+          type: 'success',
+          details: `Connected to workspace: ${dirHandle.name}`
+        });
+        showToast("Autonomous Agent Synchronized & Ready", 'success');
+      } else {
+        showToast("Project Folder Connected", 'success');
+      }
+
       // Auto-start a new session for the new local project context
       setActiveConvoId(null);
       setInput('');
-      console.log('[Circuito AI] Neural Link established. Starting fresh session for project.');
+      console.log('[Circuito AI] Autonomous Link established. Starting fresh session for project.');
     } catch (e: any) {
       if (e.name !== 'AbortError') {
         console.error('Failed to select folder:', e);
@@ -474,15 +640,100 @@ export default function Home() {
   const activeConvo = conversations.find(c => c.id === activeConvoId);
   const messages = activeConvo?.messages || [];
 
-  // Auto-scroll
+  const handleExecutePlan = async () => {
+    if (!pendingAgentData) return;
+    const { messages, convoId } = pendingAgentData;
+
+    console.log("[Circuito AI] Authorizing deployment...");
+    // ⚡ Close modal immediately on click
+    setPendingAgentData(null);
+    setAgentTaskStatus("Deployment Authorized. Starting engine...");
+
+    setIsTyping(true);
+    setAgentTaskStatus("Mission Authorized: Executing Deployment...");
+    addAgentLog({ step: "Authorization Received", type: 'success', details: "User approved the implementation plan." });
+    addAgentLog({ step: "Autonomous Synthesis", type: 'reasoning', details: "Applying autonomous patterns and verifying workspace..." });
+
+    try {
+      const result = await runAutonomousAgent('', messages, 'execute', localProjectPath);
+      if (!result) throw new Error("Autonomous session timed out.");
+ 
+      if (result.success && result.content) {
+        updateLastAgentLog({ 
+            step: "Final Verification", 
+            duration: result?.duration,
+            details: "Workspace updated and logic verified." 
+        });
+
+        addAgentLog({ step: "Mission Success", type: 'success' });
+
+        const finalMsg: Message = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `✅ **MISSION COMPLETE**\n\n${result?.content}`,
+          timestamp: new Date(),
+        };
+
+        setConversations(prev => prev.map(c => {
+          if (c.id === convoId) {
+            return { ...c, messages: [...c.messages, finalMsg] };
+          }
+          return c;
+        }));
+
+        setPendingAgentData(null);
+        setAgentTaskStatus("Deployment Complete.");
+        setIsTyping(false);
+        setTimeout(() => setAgentTaskStatus(null), 8000);
+      }
+    } catch (err: any) {
+      addAgentLog({ step: "Execution Fail", type: 'error', details: err.message });
+      setIsTyping(false);
+    }
+  };
+
+  // 📜 Intelligent Auto-scroll
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+
+  // Monitor scroll position to detect if user manually scrolled up
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // If distance from bottom is > 100px, user has scrolled up
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      setUserHasScrolledUp(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const lastMessageIsUser = messages.length > 0 && messages[messages.length - 1].role === 'user';
+
+    // Auto-scroll ONLY if:
+    // 1. It's a new user message (always jump to bottom)
+    // 2. The user is already at the bottom and AI is typing
+    if (lastMessageIsUser || (!userHasScrolledUp && isTyping)) {
+      container.scrollTo({
+        top: container.scrollHeight,
         behavior: 'smooth'
       });
     }
-  }, [messages, isTyping]);
+  }, [messages, isTyping, userHasScrolledUp]);
+
+  // 🏁 Reset scroll to top when messages are cleared (New Session)
+  useEffect(() => {
+    if (messages.length === 0 && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+      setUserHasScrolledUp(false);
+    }
+  }, [messages.length]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -531,12 +782,12 @@ export default function Home() {
     const textToSend = retryContent || input.trim();
     if (!textToSend || (isTyping && !retryContent)) return;
 
-    // Check usage limit for guest users
-    if (promptCount >= 20) {
+    // Check usage limit for guest users (Only if NOT logged in)
+    if (!user && promptCount >= 20) {
       const limitMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: "According to my creator Javier G. Siliacay he instructed me to limit my potential since he haven't configure the google sign-in",
+        content: "You have reached the usage limit for guest sessions. Please sign in with your Google account to unlock the full potential of Circuito AI and continue building.",
         timestamp: new Date(),
       };
 
@@ -615,6 +866,143 @@ export default function Home() {
     // ─── AI FETCH & STREAM ───
     const assistantMsgId = crypto.randomUUID();
     setIsTyping(true);
+
+    // 🧠 AUTO-AGENT ACTIVATION: Only if Autonomous Link is online AND User has enabled Agent Mode
+    if (isAgentEnabled) {
+      if (!autonomousLinkStatus.online) {
+        // Catch case where agent is on but bridge went offline
+        const offlineMsg: Message = {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: "🚨 **Autonomous Bridge Offline.**\n\nPlease launch the `start-autonomous-ai.bat` file in your project folder and ensure the window remains open. I cannot access your workspace until the bridge is active.",
+          timestamp: new Date(),
+        };
+        setConversations(prev => prev.map(c => {
+          if (c.id === convoId) return { ...c, messages: [...c.messages, offlineMsg] };
+          return c;
+        }));
+        setIsTyping(false);
+        return;
+      }
+
+      // Online and Enabled: Start Agent Flow
+      setAgentTaskStatus("AI-Agent Active: Analyzing Workspace...");
+      clearAgentLogs();
+      addAgentLog({ step: "Mission Start", type: 'plan', details: "Initializing high-speed autonomous architect..." });
+
+      // 🏎️ FAST MODE: Direct execution for simple tasks
+      const isFastRequest = textToSend.toLowerCase().startsWith('fast ') || 
+                          textToSend.toLowerCase().startsWith('quick ') ||
+                          (textToSend.length < 35 && !textToSend.includes('?'));
+      
+      const cleanText = isFastRequest ? textToSend.replace(/^(fast|quick)\s+/i, '') : textToSend;
+
+      try {
+        if (isFastRequest) {
+          setAgentTaskStatus("Direct Execution Mode...");
+          addAgentLog({ step: "Autonomous Bypass", type: 'success', details: "Simple task detected. Executing directly..." });
+          addAgentLog({ step: "Autonomous Synthesis", type: 'reasoning', details: "Applying changes instantly..." });
+          
+          const fastResult = await runAutonomousAgent(cleanText, messages, 'fast' as any, localProjectPath);
+          
+          if (fastResult?.success && fastResult?.content) {
+             updateLastAgentLog({ 
+                step: "Verification complete", 
+                duration: fastResult?.duration,
+                details: "Direct changes applied." 
+             });
+             addAgentLog({ step: "Mission Success", type: 'success' });
+
+             const finalMsg: Message = {
+               id: assistantMsgId,
+               role: 'assistant',
+               content: `⚡ **DIRECT ACTION COMPLETE**\n\n${fastResult?.content}`,
+               timestamp: new Date(),
+             };
+
+             setConversations(prev => prev.map(c => {
+               if (c.id === convoId) return { ...c, messages: [...c.messages, finalMsg] };
+               return c;
+             }));
+             
+             setIsTyping(false);
+             setAgentTaskStatus(null);
+             return; 
+          }
+        }
+
+        // Standard flow
+        addAgentLog({ step: "Context Snapshot", type: 'reasoning', details: "Scanning project files..." });
+        await new Promise(r => setTimeout(r, 400));
+        updateLastAgentLog({ duration: "0.4s" });
+
+        // Step 2: Planning Stage - LIVE reasoning
+        addAgentLog({ step: "Autonomous Strategy", type: 'reasoning', details: "Architecting step-by-step implementation strategy..." });
+
+        const result = await runAutonomousAgent(textToSend, messages, 'plan', localProjectPath);
+        if (!result) throw new Error("Autonomous planning failed.");
+ 
+        if (result.success && result.content) {
+          updateLastAgentLog({ 
+            step: "Triage & Strategy", 
+            duration: result?.duration,
+            details: "Technical roadmap generated. Awaiting approval." 
+          });
+          addAgentLog({ step: "Plan Ready", type: 'success', details: "Authorization required to proceed." });
+
+          const agentPlanMsg: Message = {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: `🛡️ **AUTONOMOUS IMPLEMENTATION PLAN**\n\n${result?.content}\n\n--- \n*Please review the plan below before I proceed with modifying your workspace.*`,
+            timestamp: new Date(),
+          };
+
+          setConversations(prev => prev.map(c => {
+            if (c.id === convoId) {
+              return { ...c, messages: [...c.messages, agentPlanMsg] };
+            }
+            return c;
+          }));
+
+          // Store for approval
+          setPendingAgentData({
+            plan: result?.content as string,
+            messages: result?.messages || [],
+            convoId: convoId as string
+          });
+
+          setAgentTaskStatus("Awaiting Plan Approval...");
+          setIsTyping(false);
+          return; // STOP HERE - Wait for User
+        } else {
+          addAgentLog({ step: "Mission Aborted", type: 'error', details: result?.error });
+          throw new Error(result?.error || "Autonomous Agent failed to respond.");
+        }
+      } catch (err: any) {
+        console.error('[Circuito AI] Autonomous Agent Error:', err);
+        
+        if (err.message === "MISSING_PROJECT_PATH") {
+          const warnMsg: Message = {
+            id: assistantMsgId,
+            role: 'assistant',
+            content: "⚠️ **No project folder selected.**\n\nTo use Autonomous Mode, I need to know where your project files are located. Please open the **Autonomous Link Settings** (the brain icon in the top right) and lock your project path.",
+            timestamp: new Date(),
+          };
+          setConversations(prev => prev.map(c => {
+            if (c.id === convoId) return { ...c, messages: [...c.messages, warnMsg] };
+            return c;
+          }));
+          setIsBridgeModalOpen(true);
+          setAgentTaskStatus(null);
+          setIsTyping(false);
+          return;
+        }
+
+        addAgentLog({ step: "System Exception", type: 'error', details: "Switching to cloud-only processing..." });
+        setAgentTaskStatus("Autonomous error. Switched to Cloud Chat fallback.");
+        // Continue to standard fetch below as fallback
+      }
+    }
 
     try {
       console.log('[Circuito AI] Sending request for convo:', convoId);
@@ -1000,30 +1388,17 @@ export default function Home() {
                   </div>
                 )}
 
-                <button
-                  onClick={handleConnectDevice}
+                <Link
+                  href="/flash"
                   className={`w-full h-11 flex items-center gap-3 px-4 rounded-xl text-[12px] font-bold tracking-widest uppercase transition-all ${connectedPort
                     ? 'bg-green-success/10 border border-green-success/30 text-green-success'
                     : 'bg-white/5 border border-white/10 hover:border-cyan-primary/30 text-text-muted hover:text-white shadow-inner'
                     }`}
                 >
                   <Usb className="w-4 h-4" />
-                  {connectedPort ? 'HARDWARE SYNCED' : 'CONNECT DEVICE'}
+                  {connectedPort ? 'HARDWARE SYNCED' : 'IoT DASHBOARD / CONNECT'}
                   {connectedPort && <div className="w-2 h-2 rounded-full bg-green-success ml-auto animate-pulse" />}
-                </button>
-
-                <button
-                  onClick={handleFlashBin}
-                  disabled={!connectedPort || isFlashing}
-                  className="w-full h-11 flex items-center gap-3 px-4 rounded-xl border border-white/10 text-[12px] font-bold tracking-widest uppercase text-text-muted hover:text-cyan-primary hover:bg-cyan-primary/5 hover:border-cyan-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
-                >
-                  {isFlashing ? (
-                    <RefreshCcw className="w-4 h-4 animate-spin text-cyan-primary" />
-                  ) : (
-                    <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-                  )}
-                  {isFlashing ? 'WRITING...' : 'FLASH FIRMWARE'}
-                </button>
+                </Link>
 
                 <div className="pt-2">
                   <Link
@@ -1065,10 +1440,12 @@ export default function Home() {
               </div>
             )}
             <div>
-              <h2 className="text-sm font-bold text-white tracking-tight leading-tight">Current Session</h2>
+              <h2 className="text-sm font-bold text-white tracking-tight leading-tight">
+                {isAgentEnabled ? 'Autonomous Agent Mode' : 'Chat Mode'} Active
+              </h2>
               <p className="hidden xs:flex text-[10px] text-text-muted items-center gap-1.5 font-medium mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Local Engine Active
+                <span className={`w-1.5 h-1.5 rounded-full ${isAgentEnabled ? 'bg-purple-ai shadow-[0_0_8px_rgba(168,85,247,0.5)]' : 'bg-green-500'}`} />
+                {isAgentEnabled ? 'Autonomous Architect Online' : 'Local Engine Online'}
               </p>
             </div>
           </div>
@@ -1085,7 +1462,7 @@ export default function Home() {
                 <ArduinoLogo className="w-4 h-4" />
               </div>
               <div className="hidden sm:block text-[10px] font-black uppercase tracking-tighter">
-                {isBridgeConnected ? 'Neural Link Connected' : 'Neural Link Ready'}
+                {isBridgeConnected ? 'Autonomous Link Connected' : 'Autonomous Link Ready'}
               </div>
             </button>
 
@@ -1096,6 +1473,41 @@ export default function Home() {
               <CircuitBoard className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-cyan-primary" />
               <span className="max-w-[80px] sm:max-w-none truncate">{selectedBoard?.name || 'ESP32 Mode'}</span>
               <ChevronDown className="w-3 h-3 opacity-30" />
+            </button>
+
+            {/* Arcee Autonomous Link Toggle */}
+            <button
+              onClick={() => {
+                if (!autonomousLinkStatus.online) {
+                  setIsActivatorModalOpen(true);
+                  return;
+                }
+                setIsAgentEnabled(!isAgentEnabled);
+                if (!isAgentEnabled) {
+                  showToast("Autonomous Agent Enabled", 'success');
+                } else {
+                  showToast("Switched to Standard Chat Mode", 'info');
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all active:scale-95 group ${isAgentEnabled
+                ? 'bg-purple-ai text-white border-purple-ai hover:bg-purple-hover shadow-[0_0_20px_rgba(168,85,247,0.4)]'
+                : autonomousLinkStatus.online
+                  ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai hover:bg-purple-ai/20'
+                  : 'bg-white/5 border-white/10 text-text-muted opacity-40 grayscale cursor-not-allowed'
+                }`}
+              title={autonomousLinkStatus.online
+                ? (isAgentEnabled ? 'Disable Autonomous Mode' : 'Enable Autonomous Mode')
+                : 'Arcee Bridge Offline'}
+            >
+              <div className="relative">
+                <Sparkles className={`w-4 h-4 ${isAgentEnabled ? 'animate-spin-slow' : autonomousLinkStatus.online ? 'animate-pulse' : ''}`} />
+                {isAgentEnabled && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-ping" />
+                )}
+              </div>
+              <div className="hidden lg:block text-[9px] font-black uppercase tracking-[0.15em]">
+                {isAgentEnabled ? 'Autonomous Active' : 'Agent Standby'}
+              </div>
             </button>
 
             <div className="relative">
@@ -1170,6 +1582,7 @@ export default function Home() {
             </div>
           </div>
         </header>
+ 
 
         {/* Agent Task Status Bar */}
         <AnimatePresence>
@@ -1192,14 +1605,28 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 text-purple-ai animate-spin" />
-                  <span className="text-[9px] font-bold text-purple-ai/60 uppercase tracking-tighter">Neural Link Active</span>
+                  <span className="text-[9px] font-bold text-purple-ai/60 uppercase tracking-tighter">Autonomous Link Active</span>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-
+        {/* 🧠 Autonomous Mission Control (Always visible in agent mode if logs exist) */}
+        <AnimatePresence>
+          {isAgentEnabled && agentLogs.length > 0 && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="bg-[#0A0F1C]/40 border-b border-white/5 backdrop-blur-md overflow-hidden"
+            >
+              <div className="max-w-4xl mx-auto px-6 py-4">
+                <AgentMissionLog logs={agentLogs} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 custom-scrollbar">
           {(!MAINTENANCE_CONFIG.isAuthBypassEnabled && !isLoading && user && !isAdmin && !profile?.has_ai_access) ? (
@@ -1265,7 +1692,7 @@ export default function Home() {
           ) :
             messages.length === 0 && !isTyping ? (
               /* ─── Welcome Screen ─── */
-              <div className="h-full flex flex-col items-center justify-center">
+              <div className="min-h-full flex flex-col items-center justify-start pt-0 sm:pt-4 pb-20">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -1289,18 +1716,21 @@ export default function Home() {
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-primary via-blue-400 to-purple-ai">Simplified.</span>
                   </h2>
                   <p className="text-[14px] text-text-muted mb-8 max-w-sm mx-auto leading-relaxed font-medium">
-                    Describe your Arduino/ESP32 vision. I'll architect the code, assign the pins, and verify the logic.
+                    Discuss your project in <span className="text-white">Chat Mode</span> or enable <span className="text-purple-ai">Agentic Mode</span> to automatically apply changes to your workspace.
                   </p>
 
                   {/* Local Bridge CTA */}
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="mb-8 p-4 rounded-2xl bg-[#0F1629]/60 border border-white/5 backdrop-blur-md shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 max-w-lg mx-auto overflow-hidden relative group"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center gap-6 mb-12 p-10 rounded-[32px] bg-white/[0.02] border border-white/10 backdrop-blur-md relative overflow-hidden group shadow-2xl"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-primary/5 via-purple-ai/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="flex items-center gap-4 relative z-10">
+                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-primary/5 via-transparent to-purple-ai/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+
+                    {/* Mission Log inside the Welcome/Agent View */}
+                    <AgentMissionLog logs={agentLogs} />
+
+                    <div className="flex flex-col items-center gap-4 text-center relative z-10">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isBridgeConnected ? 'bg-green-success/10' : 'bg-surface-3'}`}>
                         <ArduinoLogo className={`w-7 h-7 ${isBridgeConnected ? '' : 'opacity-40 grayscale'}`} />
                       </div>
@@ -1311,8 +1741,10 @@ export default function Home() {
                         <div className="flex flex-col items-center gap-1">
                           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/5">
                             <div className={`w-1.5 h-1.5 rounded-full ${isBridgeConnected ? 'bg-cyan-primary' : 'bg-red-500/50'} animate-pulse`} />
-                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest">
-                              {isBridgeConnected ? (localProjectPath ? `Neural Link: ${localProjectPath.split(/[\\/]/).pop()}` : 'Neural Link Ready') : 'Bridge Offline'}
+                            <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest text-center">
+                              {isBridgeConnected
+                                ? (localProjectPath ? `Link Active: ${localProjectPath.split(/[\\/]/).pop()}` : 'Autonomous Link Ready')
+                                : 'Bridge Offline: Connect to Enable Agent'}
                             </span>
                           </div>
                           <p className="text-[10px] text-text-muted/40 font-medium">
@@ -1430,7 +1862,7 @@ export default function Home() {
                                       </div>
                                       <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                        <span className="text-[9px] font-black text-white uppercase tracking-widest">Neural Bridge Active</span>
+                                        <span className="text-[9px] font-black text-white uppercase tracking-widest">Autonomous Bridge Active</span>
                                       </div>
                                     </div>
 
@@ -1468,6 +1900,7 @@ export default function Home() {
                                     </div>
 
                                     <div className="flex flex-col gap-3 pt-2">
+                                      {/* Delegate button removed - now automatic via Autonomous Link */}
                                       <div className="grid grid-cols-2 gap-3">
                                         <button
                                           onClick={async () => {
@@ -1487,7 +1920,7 @@ export default function Home() {
                                           className="h-12 rounded-2xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary font-black text-[11px] uppercase tracking-widest hover:bg-cyan-primary/20 transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-primary/5"
                                         >
                                           <Zap className="w-4 h-4" />
-                                          Direct Flash
+                                           IoT Dashboard
                                         </Link>
                                       </div>
                                       <p className="text-[9px] text-text-muted/40 italic font-medium text-center px-4 leading-relaxed">
@@ -1541,6 +1974,94 @@ export default function Home() {
         <div className="px-4 sm:px-6 py-4 bg-gradient-to-t from-[#0A0F1C] via-[#0A0F1C] to-transparent shrink-0">
           <div className="w-full max-w-2xl mx-auto relative group">
             <div className="absolute inset-0 bg-cyan-primary/5 blur-3xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-700" />
+
+            {/* 🛡️ MISSION APPROVAL CARD */}
+            <AnimatePresence>
+              {pendingAgentData && pendingAgentData.convoId === activeConvoId && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="mb-4 p-5 rounded-[24px] bg-[#161F36]/90 border border-purple-ai/30 backdrop-blur-xl shadow-2xl relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-ai/5 to-transparent pointer-events-none" />
+                  <div className="relative z-10 flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-purple-ai/20 flex items-center justify-center border border-purple-ai/20">
+                          <CheckCircle2 className="w-4.5 h-4.5 text-purple-ai" />
+                        </div>
+                        <div>
+                          <h4 className="text-[12px] font-black text-white uppercase tracking-tight">Mission Authorization Required</h4>
+                          <p className="text-[10px] text-text-muted font-bold tracking-widest uppercase">Agent Pending: Deployment Phase</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setPendingAgentData(null);
+                          setAgentTaskStatus(null);
+                        }}
+                        className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-text-muted" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-40 overflow-y-auto pr-2 custom-scrollbar bg-black/20 p-4 rounded-2xl border border-white/5">
+                      <RenderText 
+                        text={pendingAgentData.plan} 
+                        className="text-[11px]" 
+                        lineSpacing="space-y-1"
+                      />
+                    </div>
+
+                    <p className="text-[11px] text-text-muted leading-relaxed font-bold tracking-tight italic opacity-60">
+                      * Review the mission status above. Authorizing will allow the agent to read/write/execute on your local machine.
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={handleExecutePlan}
+                        className="h-11 rounded-xl bg-purple-ai text-white font-black text-[11px] uppercase tracking-widest hover:bg-purple-hover transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        Authorize Deployment
+                      </button>
+                      <button
+                        onClick={() => {
+                          console.log("[Circuito AI] Rejecting plan...");
+                          setPendingAgentData(null);
+                          setAgentTaskStatus(null);
+                          showToast('Mission Roadmap Rejected. Agent standing by.', 'info');
+                        }}
+                        className="h-11 rounded-xl bg-white/5 border border-white/10 text-text-muted font-black text-[11px] uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                      >
+                        Reject Plan
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Autonomous Agent Processing Notice */}
+            <AnimatePresence>
+              {isAgentEnabled && !isTyping && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="mb-3 px-4 py-2.5 rounded-xl bg-purple-ai/10 border border-purple-ai/20 backdrop-blur-md flex items-start gap-3 shadow-xl shadow-purple-ai/5"
+                >
+                  <Sparkles className="w-4 h-4 text-purple-ai mt-0.5 shrink-0" />
+                  <p className="text-[10px] sm:text-[11px] text-purple-ai/90 font-bold leading-relaxed tracking-tight">
+                    <span className="text-white block mb-0.5 uppercase tracking-widest text-[9px] font-black">Autonomous Mode Active</span>
+                    This request may take longer as the agent will scan the workspace, plan changes, and execute automated actions.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="relative flex items-end bg-[#0F1629]/80 backdrop-blur-xl border border-white/10 rounded-2xl focus-within:border-cyan-primary/40 focus-within:shadow-[0_0_40px_rgba(0,217,255,0.05)] transition-all overflow-hidden">
               <textarea
                 ref={inputRef}
@@ -1562,16 +2083,16 @@ export default function Home() {
               </div>
             </div>
             <div className="flex justify-center mt-3 sm:mt-4">
-              <p className="text-[8px] sm:text-[10px] font-bold text-text-muted/40 tracking-[0.2em] uppercase flex items-center gap-2">
-                <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-primary/40" />
-                Neural Link Active | End-to-End Encrypted
+              <p className={`text-[8px] sm:text-[10px] font-bold tracking-[0.2em] uppercase flex items-center gap-2 transition-colors ${isAgentEnabled ? 'text-purple-ai' : 'text-text-muted/40'}`}>
+                <Zap className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${isAgentEnabled ? 'text-purple-ai' : 'text-cyan-primary/40'}`} />
+                {isAgentEnabled ? 'Autonomous Agent Mode Active' : 'Chat Mode Active | Click Agent Above to Enable the Autonomous mode'}
               </p>
             </div>
           </div>
         </div>
-      </div>
+      </div >
 
-      {/* ─── Neural Link Bridge Modal (Official Arduino IDE) ─── */}
+      {/* ─── Autonomous Link Bridge Modal (Official Arduino IDE) ─── */}
       <AnimatePresence>
 
         {
@@ -1596,7 +2117,7 @@ export default function Home() {
                       <ArduinoLogo className="w-7 h-7" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-white tracking-tight">Neural Link</h3>
+                      <h3 className="text-lg font-black text-white tracking-tight">Autonomous Link</h3>
                       <p className="text-[11px] text-text-muted font-bold tracking-widest uppercase">Official Arduino IDE Support</p>
                     </div>
                   </div>
@@ -1612,7 +2133,7 @@ export default function Home() {
                       <img src="/brand/master-logo.png" alt="Circuito AI" className="w-6 h-6 object-contain mix-blend-screen animate-pulse" />
                     </div>
                     <p className="text-[11px] text-white leading-relaxed font-bold tracking-tight italic">
-                      "Before you proceed, you must first save your existing project file so that the Circuito AI Agent can access it from your Arduino IDE."
+                      "To enable the AI to work, please ensure your project folder is open and saved in your Arduino IDE."
                     </p>
                   </div>
 
@@ -1627,22 +2148,59 @@ export default function Home() {
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-white/5">
-                      <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Target Arduino Project Folder</label>
+                      <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Manual Autonomous Path (Absolute)</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={localPathInput}
+                          onChange={(e) => setLocalPathInput(e.target.value)}
+                          placeholder="C:\Users\User\Documents\Arduino\Project"
+                          className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white placeholder:text-white/20 outline-none transition-all font-mono focus:border-cyan-primary/50"
+                        />
+                        <button
+                          onClick={async () => {
+                            try {
+                              const result = await bridgeSetProject(localPathInput);
+                              if (result.status === 'success') {
+                                showToast("Autonomous Path Updated", 'success');
+                                const status = await checkAutonomousLink();
+                                setAutonomousLinkStatus(status);
+                              } else {
+                                showToast(result.message || "Failed to set path", 'error');
+                              }
+                            } catch (e) {
+                              showToast("Bridge Connection Failed", 'error');
+                            }
+                          }}
+                          className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-cyan-primary/20 border border-cyan-primary/30 text-cyan-primary hover:bg-cyan-primary hover:text-white transition-all font-bold text-[11px] uppercase tracking-widest"
+                        >
+                          <Target className="w-4 h-4" />
+                          Lock Path
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
+                        * Paste the <strong>Full Absolute Path</strong> from your computer to ensure the Agent writes to the correct folder.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3 pt-2 border-t border-white/5">
+                      <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Browser-Access Link (For Editor)</label>
                       <div className="flex gap-2">
                         <div className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 flex items-center text-xs text-white placeholder:text-white/20 outline-none transition-all font-mono overflow-hidden whitespace-nowrap text-ellipsis">
-                          {localProjectPath || 'No folder selected...'}
+                          {localProjectPath || 'Not Linked...'}
                         </div>
+                        
                         <button
                           onClick={handleBrowseFiles}
                           disabled={isBrowsing}
                           className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-purple-ai/20 border border-purple-ai/30 text-purple-ai hover:bg-purple-ai hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-[11px] uppercase tracking-widest"
                         >
                           {isBrowsing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
-                          Select Folder
+                          Browse
                         </button>
                       </div>
                       <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
-                        * Point this to the folder containing your .ino sketch for your official Arduino IDE.
+                        * Browse your <strong>Arduino project file folder</strong> to sync in.
                       </p>
                     </div>
 
@@ -1657,7 +2215,7 @@ export default function Home() {
                           <Check className="w-4 h-4 text-green-success" />
                         </div>
                         <div className="space-y-1">
-                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Neural Link Established</h4>
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">Autonomous Link Established</h4>
                           <p className="text-[11px] text-text-secondary leading-relaxed">
                             Your project is fully connected! The **Circuito AI Agent** will now automatically stream and sync code directly to your local files using secure Browser APIs.
                           </p>
@@ -1666,34 +2224,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  <div className="p-5 rounded-2xl bg-white/5 border border-white/5 text-left">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="flex items-center gap-2 text-[11px] font-black text-cyan-primary uppercase tracking-widest">
-                        <Zap className="w-3.5 h-3.5" />
-                        Neural Link Maintenance
-                      </h4>
-                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-primary animate-pulse" />
-                    </div>
-                    <p className="text-[11px] text-text-muted leading-relaxed mb-4">
-                      Experiencing `InvalidStateError`? Browser security requires frequent re-verification of local folder access.
-                    </p>
-                    <div className="space-y-2.5">
-                      <button
-                        onClick={() => {
-                          window.open('https://github.com/JavierSiliacay/Circuito-AI/blob/main/neural-link-optimizer.ps1', '_blank');
-                        }}
-                        className="w-full h-10 flex items-center justify-center gap-2 rounded-xl bg-orange-600/10 border border-orange-600/30 text-orange-400 hover:bg-orange-600/20 transition-all font-bold text-[10px] uppercase tracking-widest px-4"
-                      >
-                        Download Optimizer Script
-                      </button>
-                      <button
-                        onClick={handleBrowseFiles}
-                        className="w-full h-10 flex items-center justify-center gap-2 rounded-xl bg-cyan-primary/10 border border-cyan-primary/20 text-cyan-primary hover:bg-cyan-primary/20 transition-all font-bold text-[10px] uppercase tracking-widest px-4"
-                      >
-                        Re-Verify Folder Access
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-white/5">
@@ -1706,28 +2236,117 @@ export default function Home() {
                 </div>
               </motion.div>
             </div>
-          )}
+          )
+        }
+      </AnimatePresence >
+
+      {/* 🧬 Autonomous Activation Prompt */}
+      <AnimatePresence>
+        {isActivatorModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 text-left shadow-2xl">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsActivatorModalOpen(false)}
+              className="absolute inset-0 bg-[#0A0F1C]/90 backdrop-blur-2xl"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="relative w-full max-w-sm bg-gradient-to-b from-[#1E294B] to-[#121A31] border border-purple-ai/20 rounded-[32px] overflow-hidden p-8 shadow-[0_0_50px_rgba(168,85,247,0.1)]"
+            >
+              <div className="text-center space-y-6">
+                <div className="relative inline-block">
+                  <div className="absolute inset-0 bg-purple-ai/20 blur-2xl rounded-full animate-pulse" />
+                  <div className="w-20 h-20 rounded-3xl bg-purple-ai/10 flex items-center justify-center border border-purple-ai/30 relative z-10 mx-auto">
+                    <Sparkles className="w-10 h-10 text-purple-ai animate-spin-slow" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-xl font-black text-white tracking-tight">Activate Autonomous Link</h3>
+                  <p className="text-[13px] text-text-muted leading-relaxed px-4 font-medium">
+                    To enable <strong>Autonomous Mode</strong>, we need to securely link this browser to your local workshop. It's safe and takes only a moment.
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">1</div>
+                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Click the button below to get the activator.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">2</div>
+                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Open file from your downloads bar.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">3</div>
+                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Run the activator file named <strong>start-autonomous-ai.bat</strong>.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <button
+                    onClick={() => {
+                        // THE ULTIMATE STANDALONE ACTIVATOR
+                        // 1. Checks for Node.js
+                        // 2. Uses npx to run dependencies automatically (No npm install needed)
+                        // 3. Works from ANY folder (Downloads, Desktop, anywhere)
+                        const batContent = `@echo off\ntitle Circuito AI - Autonomous Link\nsetlocal\n\necho Initializing Autonomous Link...\necho ================================\necho [!] IMPORTANT: sync your project folder in arduino before it can proceed\necho ================================\necho.\n\n:: 1. Check for Node.js\nnode -v >nul 2>&1\nif %errorlevel% neq 0 (\n  echo [!] Error: Node.js NOT FOUND.\n  echo To use Autonomous Mode, you need the Node.js engine.\n  echo.\n  echo Opening download page for you...\n  start https://nodejs.org/\n  echo.\n  echo Please install it ^(use the "LTS" version^) and run this file again.\n  pause\n  exit\n)\n\necho [+] Engine Found. Initializing secure bridge...\n\necho.\necho ================================================\necho YOUR PROJECT FOLDER PATH IS:\necho %CD%\necho ================================================\necho COPY the path above and paste it into the \necho "Manual Autonomous Path" in the Circuito AI settings.\necho ================================================\necho.\n\n:: 2. Create the PURE Node.js bridge logic (Absolutely Zero Dependencies)\nset "JS_FILE=%TEMP%\\circuito_bridge.js"\necho const http = require('http'); > "%JS_FILE%"\necho const fs = require('fs'); >> "%JS_FILE%"\necho const path = require('path'); >> "%JS_FILE%"\necho const { exec } = require('child_process'); >> "%JS_FILE%"\necho let currentProject = process.cwd(); >> "%JS_FILE%"\necho const server = http.createServer((req, res) =^> { >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Origin', '*'); >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); >> "%JS_FILE%"\necho   if (req.method === 'OPTIONS') { res.end(); return; } >> "%JS_FILE%"\necho   let body = ''; >> "%JS_FILE%"\necho   req.on('data', chunk =^> { body += chunk; }); >> "%JS_FILE%"\necho   req.on('end', () =^> { >> "%JS_FILE%"\necho     const data = body ? JSON.parse(body) : {}; >> "%JS_FILE%"\necho     const sendJson = (obj) =^> { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)); }; >> "%JS_FILE%"\necho     if (req.url === '/v1/status' ^&^& req.method === 'GET') { >> "%JS_FILE%"\necho       sendJson({ online: true, version: '2.0.0-pure', projectPath: currentProject }); >> "%JS_FILE%"\necho     } else if (req.url === '/v1/set-project' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       currentProject = data.projectPath; sendJson({ status: 'ok' }); >> "%JS_FILE%"\necho     } else if (req.url === '/v1/files' ^&^& req.method === 'GET') { >> "%JS_FILE%"\necho       const listFiles = (dir, root) =^> { >> "%JS_FILE%"\necho         let res = []; const list = fs.readdirSync(dir); >> "%JS_FILE%"\necho         list.forEach(f =^> { >> "%JS_FILE%"\necho           const p = path.join(dir, f); const s = fs.statSync(p); >> "%JS_FILE%"\necho           if (s.isDirectory() ^&^& !f.includes('node_modules') ^&^& !f.startsWith('.')) { >> "%JS_FILE%"\necho             res = res.concat(listFiles(p, root)); >> "%JS_FILE%"\necho           } else if (!s.isDirectory()) res.push(path.relative(root, p)); >> "%JS_FILE%"\necho         }); return res; >> "%JS_FILE%"\necho       }; >> "%JS_FILE%"\necho       try { sendJson({ files: listFiles(currentProject, currentProject).slice(0, 100) }); } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/read' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       try { >> "%JS_FILE%"\necho         const p = path.isAbsolute(data.filePath) ? data.filePath : path.join(currentProject, data.filePath); >> "%JS_FILE%"\necho         sendJson({ content: fs.readFileSync(p, 'utf8') }); >> "%JS_FILE%"\necho       } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/write' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       try { >> "%JS_FILE%"\necho         const p = path.isAbsolute(data.filePath) ? data.filePath : path.join(currentProject, data.filePath); >> "%JS_FILE%"\necho         fs.mkdirSync(path.dirname(p), { recursive: true }); >> "%JS_FILE%"\necho         fs.writeFileSync(p, data.content); >> "%JS_FILE%"\necho         sendJson({ status: 'ok', message: 'File updated at ' + p }); >> "%JS_FILE%"\necho       } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/execute' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       exec(data.command, { cwd: currentProject }, (e, so, se) =^> sendJson({ stdout: so, stderr: se })); >> "%JS_FILE%"\necho     } else { res.statusCode = 404; res.end(); } >> "%JS_FILE%"\necho   }); >> "%JS_FILE%"\necho }); >> "%JS_FILE%"\necho server.listen(18789, '127.0.0.1', () =^> { >> "%JS_FILE%"\necho   console.log('\\n[+] SECURE LINK ESTABLISHED\\n[i] You can now return to the browser.\\n[!] KEEP THIS WINDOW OPEN WHILE USING AI.'); >> "%JS_FILE%"\necho }); >> "%JS_FILE%"\n\n:: 3. Run directly with Node\nnode "%JS_FILE%"\n\npause`;
+                        
+                        const blob = new Blob([batContent], { type: 'application/x-msdos-program' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'start-autonomous-ai.bat';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        showToast("Activator Ready! Just double-click it to link your AI.", 'success');
+                        setIsActivatorModalOpen(false);
+                    }}
+                    className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-primary via-blue-500 to-purple-ai text-[#0A0F1C] font-black text-[12px] uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-[0_0_40px_rgba(34,211,238,0.2)] active:scale-95 border border-white/20"
+                  >
+                    Start Autonomous Agent
+                  </button>
+                  <button
+                    onClick={() => setIsActivatorModalOpen(false)}
+                    className="w-full h-10 text-[10px] font-black text-text-muted uppercase tracking-widest hover:text-white transition-colors"
+                  >
+                    Maybe later
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* ─── Global Toast ─── */}
       <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-6 left-1/2 z-[200] px-6 py-3 rounded-2xl bg-[#161F36]/90 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center gap-3"
-          >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${toast.type === 'success' ? 'bg-green-success/20 text-green-success' :
-              toast.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-cyan-primary/20 text-cyan-primary'
-              }`}>
-              {toast.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            </div>
-            <p className="text-sm font-bold text-white tracking-tight">{toast.message}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        {
+          toast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: -20, x: '-50%' }}
+              className="fixed top-6 left-1/2 z-[200] px-6 py-3 rounded-2xl bg-[#161F36]/90 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center gap-3"
+            >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${toast.type === 'success' ? 'bg-green-success/20 text-green-success' :
+                toast.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-cyan-primary/20 text-cyan-primary'
+                }`}>
+                {toast.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              </div>
+              <p className="text-sm font-bold text-white tracking-tight">{toast.message}</p>
+            </motion.div>
+          )
+        }
+      </AnimatePresence >
+    </div >
   );
 }
 

@@ -45,6 +45,15 @@ export interface DeviceInfo {
     features?: string[];
 }
 
+export interface AgentLogEntry {
+    id: string;
+    step: string;
+    type: 'reasoning' | 'action' | 'success' | 'error' | 'plan';
+    timestamp: Date;
+    details?: string;
+    duration?: string;
+}
+
 interface IDEState {
     // File system
     files: FileNode[];
@@ -75,6 +84,7 @@ interface IDEState {
     isUploading: boolean;
     outputContent: string[];
     agentTaskStatus: string | null;
+    agentLogs: AgentLogEntry[];
 
 
     // Desktop Bridge (Web File System Access API)
@@ -85,6 +95,13 @@ interface IDEState {
     isBridgeSyncEnabled: boolean;
     localFileContent: string;
     dirHandle: any | null;
+
+    // Autonomous Link (Local Bridge)
+    autonomousLinkStatus: {
+        online: boolean;
+        version?: string;
+        projectPath?: string;
+    };
 
     // Actions
     setIsCompiling: (compiling: boolean) => void;
@@ -109,6 +126,10 @@ interface IDEState {
     setAIApplyProgress: (progress: number) => void;
     applyCodeToEditor: (code: string) => Promise<void>;
     setAgentTaskStatus: (status: string | null) => void;
+    addAgentLog: (log: Omit<AgentLogEntry, 'id' | 'timestamp'>) => void;
+    updateLastAgentLog: (updates: Partial<AgentLogEntry>) => void;
+    clearAgentLogs: () => void;
+    setAutonomousLinkStatus: (status: IDEState['autonomousLinkStatus']) => void;
 
 
     // Desktop Bridge Actions
@@ -238,6 +259,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     isAITyping: false,
     isAIApplying: false,
     agentTaskStatus: null,
+    agentLogs: [],
     aiApplyProgress: 0,
 
     isCompiling: false,
@@ -252,6 +274,10 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     isBridgeSyncEnabled: false,
     localFileContent: '',
     dirHandle: null,
+
+    autonomousLinkStatus: {
+        online: false
+    },
 
     setIsCompiling: (compiling) => set({ isCompiling: compiling }),
     setIsUploading: (uploading) => set({ isUploading: uploading }),
@@ -321,6 +347,18 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     setIsAIApplying: (applying) => set({ isAIApplying: applying }),
     setAIApplyProgress: (progress) => set({ aiApplyProgress: progress }),
     setAgentTaskStatus: (status) => set({ agentTaskStatus: status }),
+    addAgentLog: (log) => set((state) => ({
+        agentLogs: [...state.agentLogs, { ...log, id: Math.random().toString(36).substring(7), timestamp: new Date() }]
+    })),
+    updateLastAgentLog: (updates) => set((state) => {
+        const newLogs = [...state.agentLogs];
+        if (newLogs.length > 0) {
+            newLogs[newLogs.length - 1] = { ...newLogs[newLogs.length - 1], ...updates };
+        }
+        return { agentLogs: newLogs };
+    }),
+    clearAgentLogs: () => set({ agentLogs: [] }),
+    setAutonomousLinkStatus: (status) => set({ autonomousLinkStatus: status }),
 
 
     setBridgeStatus: (status) => set({ bridgeStatus: status, isBridgeConnected: status === 'online' }),
@@ -364,7 +402,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
             const permission = await state.dirHandle.queryPermission(options);
 
             if (permission !== 'granted') {
-                console.warn('[Neural Link] Write permission not granted - awaiting user engagement.');
+                console.warn('[Autonomous Link] Write permission not granted - awaiting user engagement.');
                 return;
             }
 
@@ -376,7 +414,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
             } catch (err: any) {
                 if (err.name === 'InvalidStateError' || err.name === 'NotFoundError') {
                     // Try one more time by refreshing the directory handle logic (if possible)
-                    console.log('[Neural Link] Resetting stale handle...');
+                    console.log('[Autonomous Link] Resetting stale handle...');
                     throw err;
                 }
                 throw err;
@@ -387,9 +425,9 @@ export const useIDEStore = create<IDEState>((set, get) => ({
             await writable.write(code);
             await writable.close();
 
-            console.log('[Neural Link] Sync success:', state.targetFileName);
+            console.log('[Autonomous Link] Sync success:', state.targetFileName);
         } catch (e: any) {
-            console.error('[Neural Link] Sync failed:', e);
+            console.error('[Autonomous Link] Sync failed:', e);
 
             // Handle specific "State Changed" error mentioned by user
             const isInvalidState = e.name === 'InvalidStateError' || e.message.includes('state had changed');
