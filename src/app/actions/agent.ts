@@ -111,15 +111,19 @@ async function triageNode(state: typeof GraphState.State) {
     }
 
     const listData = await bridgeListFiles();
-    const structure = listData.files ? listData.files.slice(0, 50).join('\n') : "Unknown";
+    const isOffline = listData.message === 'Bridge Unreachable from Server';
+    const structure = (listData.files && listData.files.length > 0) ? listData.files.slice(0, 50).join('\n') : "Unknown (Local Bridge Offline)";
     
     const sysMsg = {
         role: "system",
         content: `You are the Circuito Triage. Create a MISSION ROADMAP.
+        ENVIRONMENT: ${isOffline ? 'Live Server (Restricted)' : 'Local Environment (Full Access)'}
         ROOT: ${state.projectPath || 'None'}
         STRUCTURE:
         ${structure}
         
+        ${isOffline ? 'IMPORTANT: Local Bridge is unreachable from this server. You can only provide advice/code but cannot write files directly.' : ''}
+
         FORMAT:
         ### 🎯 GOALS
         ### 📂 TARGET FILES
@@ -137,6 +141,10 @@ async function triageNode(state: typeof GraphState.State) {
 async function generatorNode(state: typeof GraphState.State) {
     const lastMsg = state.messages[state.messages.length - 1] as any;
     console.log(`--- NODE: GENERATOR (Stage: ${state.stage}) ---`);
+    
+    const listData = await bridgeListFiles();
+    const isOffline = listData.message === 'Bridge Unreachable from Server';
+
     if (lastMsg?.content) console.log(`[Reasoning]: ${lastMsg.content.slice(0, 50)}...`);
 
     const sysMsg = {
@@ -144,6 +152,9 @@ async function generatorNode(state: typeof GraphState.State) {
         content: `You are the Circuito Autonomous Generator. 
         WORKING DIRECTORY: ${state.projectPath}
         PLATFORM: Windows.
+        BRIDGE STATUS: ${isOffline ? 'OFFLINE (Vercel/Live Deployment)' : 'ONLINE'}
+        
+        ${isOffline ? 'CRITICAL: You are running on a live server and cannot reach the local files. Inform the user they must run the app LOCALLY for autonomous execution.' : ''}
         
         CRITICAL SCOPE RULES:
         1. You are LOCKED to: ${state.projectPath}.

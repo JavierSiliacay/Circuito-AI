@@ -33,57 +33,82 @@ export async function checkAutonomousLink(): Promise<BridgeStatus> {
  * Executes a file-write on the user's machine
  */
 export async function bridgeWriteFile(filePath: string, content: string) {
-    const response = await fetch(`${BRIDGE_URL}/v1/write`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath, content })
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${BRIDGE_URL}/v1/write`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath, content }),
+            signal: AbortSignal.timeout(2000) // Don't hang the server
+        });
+        return await response.json();
+    } catch (err) {
+        return { status: 'error', message: 'Bridge Unreachable from Server' };
+    }
 }
 
 /**
  * Executes a terminal command on the user's machine (e.g., compile)
  */
 export async function bridgeExecute(command: string) {
-    const response = await fetch(`${BRIDGE_URL}/v1/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command })
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${BRIDGE_URL}/v1/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command }),
+            signal: AbortSignal.timeout(5000)
+        });
+        return await response.json();
+    } catch (err) {
+        return { status: 'error', message: 'Bridge Unreachable from Server' };
+    }
 }
 
 /**
  * Reads a file from the user's machine
  */
 export async function bridgeReadFile(filePath: string) {
-    const response = await fetch(`${BRIDGE_URL}/v1/read`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath })
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${BRIDGE_URL}/v1/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath }),
+            signal: AbortSignal.timeout(2000)
+        });
+        return await response.json();
+    } catch (err) {
+        return { status: 'error', message: 'Bridge Unreachable from Server' };
+    }
 }
 
 /**
  * Changes the active project path on the bridge
  */
 export async function bridgeSetProject(projectPath: string) {
-    const response = await fetch(`${BRIDGE_URL}/v1/set-project`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath })
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${BRIDGE_URL}/v1/set-project`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectPath }),
+            signal: AbortSignal.timeout(2000)
+        });
+        return await response.json();
+    } catch (err) {
+        return { status: 'error', message: 'Bridge Unreachable from Server' };
+    }
 }
 
 /**
  * Fetches the project file structure
  */
 export async function bridgeListFiles() {
-    const response = await fetch(`${BRIDGE_URL}/v1/files`, {
-        method: 'GET',
-        mode: 'cors'
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${BRIDGE_URL}/v1/files`, {
+            method: 'GET',
+            mode: 'cors',
+            signal: AbortSignal.timeout(2000)
+        });
+        return await response.json();
+    } catch (err) {
+        return { status: 'error', files: [], message: 'Bridge Unreachable from Server' };
+    }
 }
