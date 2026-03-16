@@ -96,13 +96,6 @@ interface IDEState {
     localFileContent: string;
     dirHandle: any | null;
 
-    // Autonomous Link (Local Bridge)
-    autonomousLinkStatus: {
-        online: boolean;
-        version?: string;
-        projectPath?: string;
-    };
-
     // Actions
     setIsCompiling: (compiling: boolean) => void;
     setIsUploading: (uploading: boolean) => void;
@@ -129,7 +122,6 @@ interface IDEState {
     addAgentLog: (log: Omit<AgentLogEntry, 'id' | 'timestamp'>) => void;
     updateLastAgentLog: (updates: Partial<AgentLogEntry>) => void;
     clearAgentLogs: () => void;
-    setAutonomousLinkStatus: (status: IDEState['autonomousLinkStatus']) => void;
 
 
     // Desktop Bridge Actions
@@ -140,6 +132,7 @@ interface IDEState {
     checkBridgeConnection: () => Promise<boolean>;
     syncToLocalFile: (code: string, force?: boolean) => Promise<void>;
     updateLocalFileContent: () => Promise<string | null>;
+    disconnectProject: () => void;
 }
 
 // Default project template — this is displayed when no project is loaded
@@ -275,10 +268,6 @@ export const useIDEStore = create<IDEState>((set, get) => ({
     localFileContent: '',
     dirHandle: null,
 
-    autonomousLinkStatus: {
-        online: false
-    },
-
     setIsCompiling: (compiling) => set({ isCompiling: compiling }),
     setIsUploading: (uploading) => set({ isUploading: uploading }),
     addOutput: (line) => set((state) => ({ outputContent: [...state.outputContent, line] })),
@@ -358,7 +347,6 @@ export const useIDEStore = create<IDEState>((set, get) => ({
         return { agentLogs: newLogs };
     }),
     clearAgentLogs: () => set({ agentLogs: [] }),
-    setAutonomousLinkStatus: (status) => set({ autonomousLinkStatus: status }),
 
 
     setBridgeStatus: (status) => set({ bridgeStatus: status, isBridgeConnected: status === 'online' }),
@@ -369,6 +357,17 @@ export const useIDEStore = create<IDEState>((set, get) => ({
         localProjectPath: `${handle.name}/${fileName}`
     }),
     toggleBridgeSync: () => set((state) => ({ isBridgeSyncEnabled: !state.isBridgeSyncEnabled })),
+
+    disconnectProject: () => set({
+        dirHandle: null,
+        targetFileName: '',
+        localProjectPath: '',
+        bridgeStatus: 'offline',
+        isBridgeConnected: false,
+        isBridgeSyncEnabled: false,
+        agentLogs: [],
+        agentTaskStatus: null
+    }),
 
     checkBridgeConnection: async () => {
         const state = get();

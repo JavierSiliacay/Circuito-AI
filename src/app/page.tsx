@@ -39,8 +39,8 @@ import { supabase } from '@/lib/supabase';
 import BoardManager from '@/components/board-manager';
 import { BoardDefinition, getInstalledBoardsList } from '@/lib/board-manager';
 import Link from 'next/link';
-import { checkAutonomousLink, bridgeSetProject } from '@/lib/autonomous-link';
 import { runAutonomousAgent } from '@/app/actions/agent';
+import { nativeListFiles, nativeReadFile, nativeWriteFile, nativeExecuteSim } from '@/lib/native-fs-bridge';
 
 // ─── Types ──────────────────────────────────────────────
 interface Message {
@@ -375,8 +375,6 @@ export default function Home() {
   const {
     isBridgeConnected,
     localProjectPath,
-    checkBridgeConnection,
-    setLocalProjectPath,
     syncToLocalFile,
     agentTaskStatus,
     setAgentTaskStatus,
@@ -384,47 +382,24 @@ export default function Home() {
     addAgentLog,
     updateLastAgentLog,
     clearAgentLogs,
-    autonomousLinkStatus,
-    setAutonomousLinkStatus
+    dirHandle,
+    disconnectProject
   } = useIDEStore();
 
-  // Check Autonomous Link Status (Arcee Bridge)
-  useEffect(() => {
-    const checkStatus = async () => {
-      const status = await checkAutonomousLink();
-      setAutonomousLinkStatus(status);
-    };
-
-    checkStatus();
-    const interval = setInterval(checkStatus, 5000);
-    return () => clearInterval(interval);
-  }, [setAutonomousLinkStatus]);
-
+  // ─── EFFECTS ───
   const { clearWarning } = useAuthStore();
   const [isInboxOpen, setIsInboxOpen] = useState(false);
 
   const [isBridgeModalOpen, setIsBridgeModalOpen] = useState(false);
-  const [isActivatorModalOpen, setIsActivatorModalOpen] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [localPathInput, setLocalPathInput] = useState(localProjectPath);
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
-
-  useEffect(() => {
-    // Initial check
-    checkBridgeConnection();
-
-    // Set up polling interval (every 3 seconds)
-    const interval = setInterval(() => {
-      checkBridgeConnection();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [checkBridgeConnection]);
 
   useEffect(() => {
     setLocalPathInput(localProjectPath);
@@ -456,9 +431,12 @@ export default function Home() {
       useIDEStore.getState().setDirHandle(dirHandle, targetFile);
       useIDEStore.getState().setBridgeStatus('online');
       setLocalPathInput(`${dirHandle.name}/${targetFile}`);
+      
+      // 🚀 AUTO-ENABLE AGENT: Automatically switch to Agentic Mode on successful sync
+      setIsAgentEnabled(true);
 
       // 🧠 Auto-Delegate Notification
-      if (autonomousLinkStatus.online) {
+      if (dirHandle) {
         addAgentLog({
           step: "Autonomous Link Synced",
           type: 'success',
@@ -655,7 +633,7 @@ export default function Home() {
     addAgentLog({ step: "Autonomous Synthesis", type: 'reasoning', details: "Applying autonomous patterns and verifying workspace..." });
 
     try {
-      const result = await runAutonomousAgent('', messages, 'execute', localProjectPath);
+      const result = await runAgentRelayLoop('', messages, 'execute');
       if (!result) throw new Error("Autonomous session timed out.");
  
       if (result.success && result.content) {
@@ -735,7 +713,92 @@ export default function Home() {
     }
   }, [messages.length]);
 
-  // Auto-resize textarea
+
+  const handleToolExecution = async (toolCalls: any[]) => {
+    if (!dirHandle) {
+      return toolCalls.map(tc => ({
+        tool_call_id: tc.id,
+        role: "tool",
+        content: "Error: No project folder linked. Please link a folder using the Native File System API."
+      }));
+    }
+
+    const results = [];
+    for (const tc of toolCalls) {
+      const { name, arguments: argsString } = tc;
+      const args = typeof argsString === 'string' ? JSON.parse(argsString) : argsString;
+      
+      console.log(`[Frontend Tool] Executing ${name}...`, args);
+      addAgentLog({ step: `Tool: ${name}`, type: 'action', details: `Target: ${args.filePath || args.command || ''}` });
+
+      let result;
+      switch (name) {
+        case 'read_file':
+          result = await nativeReadFile(dirHandle, args.filePath);
+          results.push({
+            tool_call_id: tc.id,
+            role: "tool",
+            content: result.success ? result.content : result.message
+          });
+          break;
+        case 'write_file':
+          result = await nativeWriteFile(dirHandle, args.filePath, args.content);
+          results.push({
+            tool_call_id: tc.id,
+            role: "tool",
+            content: result.success ? result.message : result.message
+          });
+          break;
+        case 'execute_terminal':
+          result = await nativeExecuteSim(args.command);
+          results.push({
+            tool_call_id: tc.id,
+            role: "tool",
+            content: result.success ? result.stdout : result.stderr
+          });
+          break;
+        default:
+          results.push({
+            tool_call_id: tc.id,
+            role: "tool",
+            content: `Error: Unknown tool ${name}`
+          });
+      }
+    }
+    return results;
+  };
+
+  const runAgentRelayLoop = async (userPrompt: string, history: any[], stage: 'plan' | 'execute' | 'fast'): Promise<any> => {
+    let currentHistory = [...history];
+    let attempts = 0;
+    const maxAttempts = 15;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      const res = await runAutonomousAgent(userPrompt, currentHistory, stage as any, localProjectPath);
+      
+      if (!res?.success) return res;
+
+      // If it requires a tool, execute it on the client and continue
+      if (res?.requiresClientTool && res?.toolCalls) {
+        const toolResults = await handleToolExecution(res.toolCalls);
+        
+        // Add the AI's tool call message and our response to the history
+        const aiMsgWithToolCalls = res.messages?.[res.messages.length - 1];
+        if (aiMsgWithToolCalls) {
+          currentHistory = [...currentHistory, aiMsgWithToolCalls, ...toolResults];
+        }
+        
+        // Loop back to continue execution with the new information
+        continue;
+      }
+
+      // If no more tools required, we are done
+      return res;
+    }
+
+    return { success: false, error: "Too many autonomous steps. Mission aborted for safety." };
+  };
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
@@ -867,14 +930,14 @@ export default function Home() {
     const assistantMsgId = crypto.randomUUID();
     setIsTyping(true);
 
-    // 🧠 AUTO-AGENT ACTIVATION: Only if Autonomous Link is online AND User has enabled Agent Mode
+    // 🧠 AUTO-AGENT ACTIVATION: Only if folder is linked AND User has enabled Agent Mode
     if (isAgentEnabled) {
-      if (!autonomousLinkStatus.online) {
-        // Catch case where agent is on but bridge went offline
+      if (!dirHandle) {
+        // Catch case where agent is on but no folder linked
         const offlineMsg: Message = {
           id: assistantMsgId,
           role: 'assistant',
-          content: "🚨 **Autonomous Bridge Offline.**\n\nPlease launch the `start-autonomous-ai.bat` file in your project folder and ensure the window remains open. I cannot access your workspace until the bridge is active.",
+          content: "🚨 **Autonomous Link Required.**\n\nPlease link your project folder using the **Autonomous Link Settings** (the brain icon in the top right). I cannot access your workspace until a folder is linked via the Browser API.",
           timestamp: new Date(),
         };
         setConversations(prev => prev.map(c => {
@@ -882,6 +945,7 @@ export default function Home() {
           return c;
         }));
         setIsTyping(false);
+        setIsBridgeModalOpen(true);
         return;
       }
 
@@ -903,7 +967,7 @@ export default function Home() {
           addAgentLog({ step: "Autonomous Bypass", type: 'success', details: "Simple task detected. Executing directly..." });
           addAgentLog({ step: "Autonomous Synthesis", type: 'reasoning', details: "Applying changes instantly..." });
           
-          const fastResult = await runAutonomousAgent(cleanText, messages, 'fast' as any, localProjectPath);
+          const fastResult = await runAgentRelayLoop(cleanText, messages, 'fast' as any);
           
           if (fastResult?.success && fastResult?.content) {
              updateLastAgentLog({ 
@@ -939,7 +1003,7 @@ export default function Home() {
         // Step 2: Planning Stage - LIVE reasoning
         addAgentLog({ step: "Autonomous Strategy", type: 'reasoning', details: "Architecting step-by-step implementation strategy..." });
 
-        const result = await runAutonomousAgent(textToSend, messages, 'plan', localProjectPath);
+        const result = await runAgentRelayLoop(textToSend, messages, 'plan');
         if (!result) throw new Error("Autonomous planning failed.");
  
         if (result.success && result.content) {
@@ -1008,9 +1072,9 @@ export default function Home() {
       console.log('[Circuito AI] Sending request for convo:', convoId);
 
       // ─── PROJECT AWARENESS FETCH ───
-      // If bridge is connected, fetch latest local code to inject into AI context
+      // Only if Agent Mode is ENABLED, fetch latest local code to inject into AI context
       let currentLocalCode = '';
-      if (isBridgeConnected && localProjectPath) {
+      if (isAgentEnabled && isBridgeConnected && localProjectPath) {
         try {
           console.log('[Circuito AI] Fetching latest context from Bridge...');
           // Promise with timeout for the bridge fetch
@@ -1478,8 +1542,8 @@ export default function Home() {
             {/* Arcee Autonomous Link Toggle */}
             <button
               onClick={() => {
-                if (!autonomousLinkStatus.online) {
-                  setIsActivatorModalOpen(true);
+                if (!dirHandle) {
+                  setIsBridgeModalOpen(true);
                   return;
                 }
                 setIsAgentEnabled(!isAgentEnabled);
@@ -1491,16 +1555,16 @@ export default function Home() {
               }}
               className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all active:scale-95 group ${isAgentEnabled
                 ? 'bg-purple-ai text-white border-purple-ai hover:bg-purple-hover shadow-[0_0_20px_rgba(168,85,247,0.4)]'
-                : autonomousLinkStatus.online
+                : dirHandle
                   ? 'bg-purple-ai/10 border-purple-ai/30 text-purple-ai hover:bg-purple-ai/20'
-                  : 'bg-white/5 border-white/10 text-text-muted opacity-40 grayscale cursor-not-allowed'
+                  : 'bg-white/5 border-white/10 text-text-muted opacity-40 grayscale cursor-allowed hover:bg-white/10'
                 }`}
-              title={autonomousLinkStatus.online
+              title={dirHandle
                 ? (isAgentEnabled ? 'Disable Autonomous Mode' : 'Enable Autonomous Mode')
-                : 'Arcee Bridge Offline'}
+                : 'Project Folder Not Linked'}
             >
               <div className="relative">
-                <Sparkles className={`w-4 h-4 ${isAgentEnabled ? 'animate-spin-slow' : autonomousLinkStatus.online ? 'animate-pulse' : ''}`} />
+                <Sparkles className={`w-4 h-4 ${isAgentEnabled ? 'animate-spin-slow' : dirHandle ? 'animate-pulse' : ''}`} />
                 {isAgentEnabled && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-ping" />
                 )}
@@ -1744,7 +1808,7 @@ export default function Home() {
                             <span className="text-[9px] font-bold text-text-muted uppercase tracking-widest text-center">
                               {isBridgeConnected
                                 ? (localProjectPath ? `Link Active: ${localProjectPath.split(/[\\/]/).pop()}` : 'Autonomous Link Ready')
-                                : 'Bridge Offline: Connect to Enable Agent'}
+                                : 'Autonomous Link Required: Sync Now'}
                             </span>
                           </div>
                           <p className="text-[10px] text-text-muted/40 font-medium">
@@ -2133,7 +2197,7 @@ export default function Home() {
                       <img src="/brand/master-logo.png" alt="Circuito AI" className="w-6 h-6 object-contain mix-blend-screen animate-pulse" />
                     </div>
                     <p className="text-[11px] text-white leading-relaxed font-bold tracking-tight italic">
-                      "To enable the AI to work, please ensure your project folder is open and saved in your Arduino IDE."
+                      "Ignite the machine. Link your project folder to transform this chat into a living, breathing autonomous development engine."
                     </p>
                   </div>
 
@@ -2148,39 +2212,10 @@ export default function Home() {
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-white/5">
-                      <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Manual Autonomous Path (Absolute)</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={localPathInput}
-                          onChange={(e) => setLocalPathInput(e.target.value)}
-                          placeholder="C:\Users\User\Documents\Arduino\Project"
-                          className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white placeholder:text-white/20 outline-none transition-all font-mono focus:border-cyan-primary/50"
-                        />
-                        <button
-                          onClick={async () => {
-                            try {
-                              const result = await bridgeSetProject(localPathInput);
-                              if (result.status === 'success') {
-                                showToast("Autonomous Path Updated", 'success');
-                                const status = await checkAutonomousLink();
-                                setAutonomousLinkStatus(status);
-                              } else {
-                                showToast(result.message || "Failed to set path", 'error');
-                              }
-                            } catch (e) {
-                              showToast("Bridge Connection Failed", 'error');
-                            }
-                          }}
-                          className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-cyan-primary/20 border border-cyan-primary/30 text-cyan-primary hover:bg-cyan-primary hover:text-white transition-all font-bold text-[11px] uppercase tracking-widest"
-                        >
-                          <Target className="w-4 h-4" />
-                          Lock Path
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
-                        * Paste the <strong>Full Absolute Path</strong> from your computer to ensure the Agent writes to the correct folder.
-                      </p>
+                      <label className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em] block">Workspace Connection (Global Release)</label>
+                      <p className="text-[11px] text-text-secondary leading-relaxed bg-black/20 p-4 rounded-xl border border-white/5 font-medium">
+                        Enable AI-Agent to transform <strong>Circuito AI</strong> from a normal chatbot into a project-aware coding assistant that can access your selected folder, read files, analyze your codebase, and write code directly for you.
+                     </p>
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-white/5">
@@ -2189,18 +2224,32 @@ export default function Home() {
                         <div className="flex-1 h-10 bg-black/40 border border-white/10 rounded-xl px-4 flex items-center text-xs text-white placeholder:text-white/20 outline-none transition-all font-mono overflow-hidden whitespace-nowrap text-ellipsis">
                           {localProjectPath || 'Not Linked...'}
                         </div>
-                        
                         <button
                           onClick={handleBrowseFiles}
                           disabled={isBrowsing}
                           className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-purple-ai/20 border border-purple-ai/30 text-purple-ai hover:bg-purple-ai hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed font-bold text-[11px] uppercase tracking-widest"
                         >
                           {isBrowsing ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <FolderOpen className="w-4 h-4" />}
-                          Browse
+                          {isBridgeConnected ? 'Change' : 'Browse'}
                         </button>
+
+                        {isBridgeConnected && (
+                          <button
+                            onClick={() => {
+                              disconnectProject();
+                              setIsAgentEnabled(false);
+                              showToast("Project Disconnected. Returned to Chat Mode.", 'info');
+                            }}
+                            className="px-4 h-10 flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all font-bold text-[11px] uppercase tracking-widest"
+                            title="Disconnect Workspace"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Deselect
+                          </button>
+                        )}
                       </div>
                       <p className="text-[10px] text-text-muted leading-relaxed italic opacity-60">
-                        * Browse your <strong>Arduino project file folder</strong> to sync in.
+                        * Browse your <strong>Arduino project file folder</strong> (e.g. the folder containing your .ino file).
                       </p>
                     </div>
 
@@ -2236,95 +2285,9 @@ export default function Home() {
                 </div>
               </motion.div>
             </div>
-          )
-        }
-      </AnimatePresence >
-
-      {/* 🧬 Autonomous Activation Prompt */}
-      <AnimatePresence>
-        {isActivatorModalOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 text-left shadow-2xl">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsActivatorModalOpen(false)}
-              className="absolute inset-0 bg-[#0A0F1C]/90 backdrop-blur-2xl"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="relative w-full max-w-sm bg-gradient-to-b from-[#1E294B] to-[#121A31] border border-purple-ai/20 rounded-[32px] overflow-hidden p-8 shadow-[0_0_50px_rgba(168,85,247,0.1)]"
-            >
-              <div className="text-center space-y-6">
-                <div className="relative inline-block">
-                  <div className="absolute inset-0 bg-purple-ai/20 blur-2xl rounded-full animate-pulse" />
-                  <div className="w-20 h-20 rounded-3xl bg-purple-ai/10 flex items-center justify-center border border-purple-ai/30 relative z-10 mx-auto">
-                    <Sparkles className="w-10 h-10 text-purple-ai animate-spin-slow" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-xl font-black text-white tracking-tight">Activate Autonomous Link</h3>
-                  <p className="text-[13px] text-text-muted leading-relaxed px-4 font-medium">
-                    To enable <strong>Autonomous Mode</strong>, we need to securely link this browser to your local workshop. It's safe and takes only a moment.
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">1</div>
-                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Click the button below to get the activator.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">2</div>
-                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Open file from your downloads bar.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-cyan-primary/20 flex items-center justify-center text-cyan-primary text-[10px] font-black shrink-0">3</div>
-                    <p className="text-[11px] text-white/80 font-medium text-left flex-1">Run the activator file named <strong>start-autonomous-ai.bat</strong>.</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <button
-                    onClick={() => {
-                        // THE ULTIMATE STANDALONE ACTIVATOR
-                        // 1. Checks for Node.js
-                        // 2. Uses npx to run dependencies automatically (No npm install needed)
-                        // 3. Works from ANY folder (Downloads, Desktop, anywhere)
-                        const batContent = `@echo off\ntitle Circuito AI - Autonomous Link\nsetlocal\n\necho Initializing Autonomous Link...\necho ================================\necho [!] IMPORTANT: sync your project folder in arduino before it can proceed\necho ================================\necho.\n\n:: 1. Check for Node.js\nnode -v >nul 2>&1\nif %errorlevel% neq 0 (\n  echo [!] Error: Node.js NOT FOUND.\n  echo To use Autonomous Mode, you need the Node.js engine.\n  echo.\n  echo Opening download page for you...\n  start https://nodejs.org/\n  echo.\n  echo Please install it ^(use the "LTS" version^) and run this file again.\n  pause\n  exit\n)\n\necho [+] Engine Found. Initializing secure bridge...\n\necho.\necho ================================================\necho YOUR PROJECT FOLDER PATH IS:\necho %CD%\necho ================================================\necho COPY the path above and paste it into the \necho "Manual Autonomous Path" in the Circuito AI settings.\necho ================================================\necho.\n\n:: 2. Create the PURE Node.js bridge logic (Absolutely Zero Dependencies)\nset "JS_FILE=%TEMP%\\circuito_bridge.js"\necho const http = require('http'); > "%JS_FILE%"\necho const fs = require('fs'); >> "%JS_FILE%"\necho const path = require('path'); >> "%JS_FILE%"\necho const { exec } = require('child_process'); >> "%JS_FILE%"\necho let currentProject = process.cwd(); >> "%JS_FILE%"\necho const server = http.createServer((req, res) =^> { >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Origin', '*'); >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); >> "%JS_FILE%"\necho   res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); >> "%JS_FILE%"\necho   if (req.method === 'OPTIONS') { res.end(); return; } >> "%JS_FILE%"\necho   let body = ''; >> "%JS_FILE%"\necho   req.on('data', chunk =^> { body += chunk; }); >> "%JS_FILE%"\necho   req.on('end', () =^> { >> "%JS_FILE%"\necho     const data = body ? JSON.parse(body) : {}; >> "%JS_FILE%"\necho     const sendJson = (obj) =^> { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(obj)); }; >> "%JS_FILE%"\necho     if (req.url === '/v1/status' ^&^& req.method === 'GET') { >> "%JS_FILE%"\necho       sendJson({ online: true, version: '2.0.0-pure', projectPath: currentProject }); >> "%JS_FILE%"\necho     } else if (req.url === '/v1/set-project' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       currentProject = data.projectPath; sendJson({ status: 'ok' }); >> "%JS_FILE%"\necho     } else if (req.url === '/v1/files' ^&^& req.method === 'GET') { >> "%JS_FILE%"\necho       const listFiles = (dir, root) =^> { >> "%JS_FILE%"\necho         let res = []; const list = fs.readdirSync(dir); >> "%JS_FILE%"\necho         list.forEach(f =^> { >> "%JS_FILE%"\necho           const p = path.join(dir, f); const s = fs.statSync(p); >> "%JS_FILE%"\necho           if (s.isDirectory() ^&^& !f.includes('node_modules') ^&^& !f.startsWith('.')) { >> "%JS_FILE%"\necho             res = res.concat(listFiles(p, root)); >> "%JS_FILE%"\necho           } else if (!s.isDirectory()) res.push(path.relative(root, p)); >> "%JS_FILE%"\necho         }); return res; >> "%JS_FILE%"\necho       }; >> "%JS_FILE%"\necho       try { sendJson({ files: listFiles(currentProject, currentProject).slice(0, 100) }); } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/read' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       try { >> "%JS_FILE%"\necho         const p = path.isAbsolute(data.filePath) ? data.filePath : path.join(currentProject, data.filePath); >> "%JS_FILE%"\necho         sendJson({ content: fs.readFileSync(p, 'utf8') }); >> "%JS_FILE%"\necho       } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/write' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       try { >> "%JS_FILE%"\necho         const p = path.isAbsolute(data.filePath) ? data.filePath : path.join(currentProject, data.filePath); >> "%JS_FILE%"\necho         fs.mkdirSync(path.dirname(p), { recursive: true }); >> "%JS_FILE%"\necho         fs.writeFileSync(p, data.content); >> "%JS_FILE%"\necho         sendJson({ status: 'ok', message: 'File updated at ' + p }); >> "%JS_FILE%"\necho       } catch(e) { sendJson({ error: e.message }); } >> "%JS_FILE%"\necho     } else if (req.url === '/v1/execute' ^&^& req.method === 'POST') { >> "%JS_FILE%"\necho       exec(data.command, { cwd: currentProject }, (e, so, se) =^> sendJson({ stdout: so, stderr: se })); >> "%JS_FILE%"\necho     } else { res.statusCode = 404; res.end(); } >> "%JS_FILE%"\necho   }); >> "%JS_FILE%"\necho }); >> "%JS_FILE%"\necho server.listen(18789, '127.0.0.1', () =^> { >> "%JS_FILE%"\necho   console.log('\\n[+] SECURE LINK ESTABLISHED\\n[i] You can now return to the browser.\\n[!] KEEP THIS WINDOW OPEN WHILE USING AI.'); >> "%JS_FILE%"\necho }); >> "%JS_FILE%"\n\n:: 3. Run directly with Node\nnode "%JS_FILE%"\n\npause`;
-                        
-                        const blob = new Blob([batContent], { type: 'application/x-msdos-program' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'start-autonomous-ai.bat';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        
-                        showToast("Activator Ready! Just double-click it to link your AI.", 'success');
-                        setIsActivatorModalOpen(false);
-                    }}
-                    className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-primary via-blue-500 to-purple-ai text-[#0A0F1C] font-black text-[12px] uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-[0_0_40px_rgba(34,211,238,0.2)] active:scale-95 border border-white/20"
-                  >
-                    Start Autonomous Agent
-                  </button>
-                  <button
-                    onClick={() => setIsActivatorModalOpen(false)}
-                    className="w-full h-10 text-[10px] font-black text-text-muted uppercase tracking-widest hover:text-white transition-colors"
-                  >
-                    Maybe later
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
+          )}
       </AnimatePresence>
+
 
       {/* ─── Global Toast ─── */}
       <AnimatePresence>
