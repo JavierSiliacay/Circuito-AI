@@ -8,6 +8,9 @@
 ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
 ![Zustand](https://img.shields.io/badge/Zustand-443E38?style=for-the-badge&logo=react&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
+![TanStack Query](https://img.shields.io/badge/TanStack_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![Esptool](https://img.shields.io/badge/Esptool-E7352C?style=for-the-badge&logo=espressif&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)
 
@@ -28,13 +31,13 @@ The platform combines a powerful code editor with specialized AI assistance and 
 A dedicated environment for vehicle telemetry and hardware debugging. The Diagnostic Station connects directly to hardware to stream live sensor data at high baud rates. It features a resident **Automotive AI Specialist** that can instantly analyze live serial telemetry, identify fault codes, and offer advanced mechanical and electrical insights.
 
 
-### Browser-Based Firmware Flashing (Neural Link)
+### Browser-Based Firmware Flashing (Autonomous Link)
 
 ![Connecting to Neural Link](docs/images/neural-link-1.png)
 ![Coding via Neural Link](docs/images/neural-link-2.png)
 ![Sync Complete](docs/images/neural-link-3.png)
 
-Direct communication with your physical hardware using the Web Serial API. The "Neural Link" system allows you to compile and flash firmware to ESP32 and Arduino boards directly from the web interface, without any external plugins or desktop applications.
+Direct communication with your physical hardware using the Web Serial API. The "Autonomous Link" system allows you to compile and flash firmware to ESP32 and Arduino boards directly from the web interface, without any external plugins or desktop applications.
 
 ### IoT Monitoring & Live Telemetry Stream
 A dedicated high-speed dashboard for managing connected devices and viewing real-time serial telemetry. It features automated scrolling, selective data copying, and intelligent "Hardware Sync" that instantly feeds physical sensor readings directly to the AI for analysis.
@@ -43,7 +46,7 @@ A dedicated high-speed dashboard for managing connected devices and viewing real
 
 - **Frontend Framework**: Next.js 16 with Turbopack & React 19
 - **Editor Environment**: Monaco Editor
-- **Hardware Communication**: Web Serial API (Neural Link)
+- **Hardware Communication**: Web Serial API (Autonomous Link)
 - **Database & Storage**: Supabase
 - **Artificial Intelligence**: Advanced LLMs (Qwen/StepFun) tuned for embedded engineering and automotive diagnostics
 - **Animations & UI**: Framer Motion, Tailwind CSS, and Shadcn/UI for a premium, responsive interface
@@ -53,7 +56,7 @@ A dedicated high-speed dashboard for managing connected devices and viewing real
 ### Core Infrastructure
 - Fully implemented project management system with Supabase integration.
 - Intelligent Monaco Editor integration with Arduino/C++ support.
-- Robust Web Serial implementation (`Neural Link`) for device detection and serial monitoring.
+- Robust Web Serial implementation (`Autonomous Link`) for device detection and serial monitoring.
 - Board manager system support for popular development kits (ESP32 DevKit, etc.).
 
 ### AI and Automation
