@@ -114,51 +114,57 @@ export const useSerialStore = create<SerialState>((set, get) => ({
 
         try {
             log('Universal Hardware Handshake (Deep Pro Mode)...');
-            await get().sendData(activeDevice.id, 'ATZ\r'); // Full Reset
-            await new Promise(r => setTimeout(r, 1000));
-            await get().sendData(activeDevice.id, 'ATE0\r'); // Echo Off
-            await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATH1\r'); // Headers ON
-            await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATAL\r'); // Allow Long messages
-            await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATCAF0\r'); // CAN Auto-Formatting OFF (reveals raw frames)
-            await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATAT1\r'); // Adaptive Timing
-            await new Promise(r => setTimeout(r, 500));
+            // 🛡️ SAFELY RESET: Use 'ATWS' (Warm Start) for Bluetooth to avoid disconnection.
+            // Only use 'ATZ' (Full Reset) for Serial/USB devices.
+            const resetCmd = activeDevice.type === 'bluetooth' ? 'ATWS\r' : 'ATZ\r';
+            await get().sendData(activeDevice.id, resetCmd); 
+            await new Promise(r => setTimeout(r, activeDevice.type === 'bluetooth' ? 500 : 1000));
 
-            // --- PROTOCOL DISCOVERY PHASE ---
-            log('Phase 1: Standard Auto-Detection...');
+            await get().sendData(activeDevice.id, 'ATE0\r'); // Echo Off
+            await new Promise(r => setTimeout(r, 300));
+            await get().sendData(activeDevice.id, 'ATH1\r'); // Headers ON
+            await new Promise(r => setTimeout(r, 300));
+            await get().sendData(activeDevice.id, 'ATAL\r'); // Allow Long messages
+            await new Promise(r => setTimeout(r, 300));
+            await get().sendData(activeDevice.id, 'ATCAF0\r'); // CAN Auto-Formatting OFF (reveals raw frames)
+            await new Promise(r => setTimeout(r, 300));
+            await get().sendData(activeDevice.id, 'ATAT1\r'); // Adaptive Timing
+            await new Promise(r => setTimeout(r, 300));
+
+            // --- UNIVERSAL PROTOCOL DISCOVERY ---
+            log('Phase 1: Universal Protocol Discovery (Auto-Detection)...');
             await get().sendData(activeDevice.id, 'ATSP0\r');
             await new Promise(r => setTimeout(r, 1200));
 
-            log('Querying Vehicle Identity (Standard)...');
-            await get().sendData(activeDevice.id, '0100\r');
-            await get().sendData(activeDevice.id, '0902\r');
-            await new Promise(r => setTimeout(r, 3000));
-
-            // Secondary search if identity is still silent
-            log('Phase 2: Professional Identification Search...');
-            await get().sendData(activeDevice.id, '22F190\r');
-            await new Promise(r => setTimeout(r, 2500));
-
-            log('Phase 3: High-Speed Channel Lock...');
-            await get().sendData(activeDevice.id, 'ATSP6\r');
-            await new Promise(r => setTimeout(r, 1000));
-            await get().sendData(activeDevice.id, '0902\r');
-            await new Promise(r => setTimeout(r, 2000));
-
-            log('Querying Vehicle Odometer (01A6)...');
-            await get().sendData(activeDevice.id, '01A6\r');
+            log('Phase 2: Verifying ECU Response...');
+            await get().sendData(activeDevice.id, '0100\r'); // Supported PIDs
             await new Promise(r => setTimeout(r, 1000));
 
+            log('Phase 3: Deep Service Discovery...');
+            log('Querying Engine State (Service 01)...');
+            await get().sendData(activeDevice.id, '010C\r'); // RPM
+            await new Promise(r => setTimeout(r, 400));
+            await get().sendData(activeDevice.id, '0105\r'); // Coolant
+            await new Promise(r => setTimeout(r, 400));
             log('Requesting Stored Trouble Codes (Service 03)...');
             await get().sendData(activeDevice.id, '03\r');
             await new Promise(r => setTimeout(r, 1500));
 
-            log('Requesting Mileage since cleared (0131)...');
+            log('Requesting Permanent Trouble Codes (Service 0A)...');
+            await get().sendData(activeDevice.id, '0A\r'); // 🕵️ Can NOT be cleared by any scanner
+            await new Promise(r => setTimeout(r, 1000));
+
+            log('Audit: Distance traveled with MIL ON (0121)...');
+            await get().sendData(activeDevice.id, '0121\r');
+            await new Promise(r => setTimeout(r, 1000));
+
+            log('Audit: Mileage since last history clear (0131)...');
             await get().sendData(activeDevice.id, '0131\r');
             await new Promise(r => setTimeout(r, 1000));
+
+            log('Audit: Snapshots of past failures (Service 02)...');
+            await get().sendData(activeDevice.id, '020000\r'); // Request freeze frame header
+            await new Promise(r => setTimeout(r, 1500));
 
             log('Requesting Pending Trouble Codes (Service 07)...');
             await get().sendData(activeDevice.id, '07\r');
@@ -171,18 +177,16 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             await new Promise(r => setTimeout(r, 500));
             await get().sendData(activeDevice.id, '0104\r'); // Load
 
-            log('Hardware Reset (Returning to Standard Stream)...');
+            log('Finalizing Hardware Stream (Performance Mode)...');
             await get().sendData(activeDevice.id, 'ATH0\r'); // Headers OFF
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 300));
             await get().sendData(activeDevice.id, 'ATCAF1\r'); // Auto-Formatting ON
-            await new Promise(r => setTimeout(r, 500));
-            await get().sendData(activeDevice.id, 'ATSP0\r'); // Back to Auto-Protocol
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 300));
 
             log('Scan Complete. Passing telemetry to AI Specialist...');
 
-            // Trigger AI analysis with a specific prompt
-            await get().analyzeDiagnostic("I've finished a deep hardware scan across multiple diagnostic services (Mode 09 and UDS 22). Please identify the vehicle unit/model (VIN/ECU). Look for multi-frame CAN responses. IMPORTANT: If you detect any Diagnostic Trouble Codes (DTCs), you MUST display the code (e.g., P0302) at the very top of your response before any other text.");
+            // 🕵️ UPGRADED AI PROMPT: Focus on Honesty & Integrity Audit
+            await get().analyzeDiagnostic("I have completed a Deep Mechanical Integrity Audit. Please look at Service 0A (Permanent) and 0131 (Mileage since clear). If the mileage since clear (0131) is very low (less than 50km), warn the user that the history was recently wiped. If you find a Permanent Code (0A) that is NOT in Mode 03, explain that someone attempted to delete this code but it is still physically present in the ECU's shadow memory. Display any findings at the very top of your response.");
 
             // 🔄 Resume polling after scan
             if (activeDevice) {
@@ -204,6 +208,8 @@ export const useSerialStore = create<SerialState>((set, get) => ({
 
         console.log('[SerialStore] Starting Live Telemetry Polling...');
 
+        let pollCount = 0; // 🎯 STABLE LOCAL COUNTER
+
         const poll = async () => {
             const current = get();
             const device = current.devices.find(d => d.id === deviceId);
@@ -219,30 +225,34 @@ export const useSerialStore = create<SerialState>((set, get) => ({
             }
 
             try {
-                // Background poll core PIDs with high frequency
-                await current.sendData(deviceId, '0101\r'); // MIL Status & DTC Count
-                await new Promise(r => setTimeout(r, 150));
+                // 🚀 FAST DASHBOARD UPDATE: Priority PIDs first
+                await current.sendData(deviceId, '010C\r'); // RPM (Priority 1)
+                await new Promise(r => setTimeout(r, 80)); 
 
-                await current.sendData(deviceId, '010C\r'); // RPM
-                await new Promise(r => setTimeout(r, 150));
+                await current.sendData(deviceId, '010D\r'); // Speed (Priority 1)
+                await new Promise(r => setTimeout(r, 80));
 
-                await current.sendData(deviceId, '010D\r'); // Speed
-                await new Promise(r => setTimeout(r, 150));
+                await current.sendData(deviceId, 'ATRV\r'); // Voltage (Priority 2)
+                await new Promise(r => setTimeout(r, 100));
 
-                await current.sendData(deviceId, '0105\r'); // Coolant
-                await new Promise(r => setTimeout(r, 150));
-
-                await current.sendData(deviceId, '0103\r'); // Fuel System Status
-                await new Promise(r => setTimeout(r, 150));
-
-                await current.sendData(deviceId, 'ATRV\r'); // Voltage
-                await new Promise(r => setTimeout(r, 150));
+                // 🐢 SLOWER CORE PIDs (Every 2nd poll cycle to save bandwidth)
+                if (pollCount % 2 === 0) {
+                    await current.sendData(deviceId, '0101\r'); // MIL Status
+                    await new Promise(r => setTimeout(r, 100));
+                    await current.sendData(deviceId, '0105\r'); // Coolant
+                    await new Promise(r => setTimeout(r, 100));
+                    await current.sendData(deviceId, '0103\r'); // Fuel System Status
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                
+                pollCount++;
+                if (pollCount > 1000) pollCount = 0; // Reset to avoid overflow
             } catch (e) {
                 console.error('[SerialStore] Polling failed:', e);
             }
         };
 
-        const interval = setInterval(poll, 1200); // Polling batch every 1.2s for balance
+        const interval = setInterval(poll, 600); // 🚀 2x Faster Polling (600ms vs 1200ms)
         (state as any).livePollingInterval = interval;
     },
 
